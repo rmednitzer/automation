@@ -34,7 +34,7 @@ SSH server hardening for Ubuntu 24.04 LTS.
 | `ssh_login_grace_time`                  | `20`                                                                                             | Seconds to authenticate before disconnect |
 | `ssh_client_alive_interval`             | `300`                                                                                            | Idle keepalive interval (seconds) |
 | `ssh_client_alive_count_max`            | `2`                                                                                              | Idle keepalives before disconnect |
-| `ssh_kex_algorithms`                    | `curve25519-sha256`, `curve25519-sha256@libssh.org`, `diffie-hellman-group{16,18}-sha512`        | Permitted KEX algorithms |
+| `ssh_kex_algorithms`                    | list: `curve25519-sha256`, `curve25519-sha256@libssh.org`, `diffie-hellman-group16-sha512`, `diffie-hellman-group18-sha512` | Permitted KEX algorithms |
 | `ssh_ciphers`                           | `chacha20-poly1305@openssh.com`, `aes256-gcm@openssh.com`, `aes128-gcm@openssh.com`, `aes256-ctr` | Permitted symmetric ciphers |
 | `ssh_macs`                              | `hmac-sha2-512-etm@openssh.com`, `hmac-sha2-256-etm@openssh.com`, `hmac-sha2-512`, `hmac-sha2-256` | Permitted MAC algorithms |
 | `ssh_host_key_algorithms`               | `ssh-ed25519`, `rsa-sha2-512`, `rsa-sha2-256`                                                    | Permitted host-key algorithms |

@@ -19,7 +19,7 @@ Time synchronisation via `chrony` for Ubuntu 24.04 LTS.
 
 | Variable                       | Default                                                  | Description |
 |--------------------------------|----------------------------------------------------------|-------------|
-| `ntp_servers`                  | `0.at.pool.ntp.org`, `1.at.pool.ntp.org`, `2.at.pool.ntp.org`, `0.europe.pool.ntp.org` (all `iburst`) | Discrete NTP servers |
+| `ntp_servers`                  | list: `"0.at.pool.ntp.org iburst"`, `"1.at.pool.ntp.org iburst"`, `"2.at.pool.ntp.org iburst"`, `"0.europe.pool.ntp.org iburst"` | Discrete NTP servers (each entry is a full `chrony.conf` `server` line) |
 | `ntp_pools`                    | `[]`                                                     | NTP pool entries (alternative to discrete servers) |
 | `ntp_allow_networks`           | `[]`                                                     | Networks permitted to query as clients (empty = server-only mode) |
 | `ntp_driftfile`                | `/var/lib/chrony/chrony.drift`                           | Drift file path |
