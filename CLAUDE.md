@@ -28,7 +28,7 @@ This repository follows the standard Ansible best-practices layout:
 ```
 ansible-ops/
 ├── CLAUDE.md              # This file - AI assistant guide
-├── LICENSE                # GNU General Public License v3
+├── LICENSE                # Apache License 2.0
 ├── README.md              # Project documentation
 ├── .gitignore             # Git ignore rules
 ├── ansible.cfg            # Ansible configuration
@@ -74,6 +74,8 @@ The repository contains a complete compliance-aligned hardening baseline with 10
 `common`, `users`, `ntp`, `ssh_hardening`, `ufw`, `fail2ban`, `aide`, `rkhunter`, `log_forwarding`, `auditd`.
 
 The main playbook `playbooks/site-common.yml` applies all roles to Ubuntu 24.04 LTS hosts.
+
+The codebase is periodically re-validated against known-good sources (CIS Ubuntu Benchmark, BSI TR-02102-4, upstream OpenSSH / chrony / auditd / pam_faillock / pam_pwquality manuals, Ansible production-profile lint rules). The latest baseline and its findings are recorded in [`docs/ADR-001-code-validation-baseline.md`](docs/ADR-001-code-validation-baseline.md). When opening a new ADR, increment the number and follow the same structure (Status, Date, Context, Decisions, Consequences, References).
 
 ## Development Conventions
 

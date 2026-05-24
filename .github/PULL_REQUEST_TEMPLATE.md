@@ -19,6 +19,8 @@
 - [ ] I have run `ansible-lint` with no errors
 - [ ] I have run `ansible-playbook --syntax-check` on affected playbooks
 - [ ] I have updated relevant documentation (role READMEs, etc.)
+- [ ] If I changed a variable in `roles/<name>/defaults/main.yml`, the same change is reflected in `roles/<name>/README.md` (per [ADR-001](../docs/ADR-001-code-validation-baseline.md))
+- [ ] If I added or renumbered a `CTL-*` or `POL-*` identifier, `docs/compliance-controls.yml`, the relevant role headers, and the README mapping table are all updated together
 - [ ] No unencrypted secrets are included in this PR
 
 ## Testing
