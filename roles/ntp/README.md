@@ -1,23 +1,33 @@
 # NTP Role
 
-NTP time synchronization via chrony for Ubuntu 24.04 LTS.
+Time synchronisation via `chrony` for Ubuntu 24.04 LTS.
 
 ## What it does
 
-- Removes systemd-timesyncd to avoid conflicts
-- Installs and configures chrony
-- Configures NTP servers/pools
-- Optionally serves time to local network clients
-- Verifies synchronization status
+- Removes `systemd-timesyncd` to avoid two daemons fighting over the
+  system clock
+- Installs and configures `chrony`
+- Defaults to Austrian / European NTP pools for jurisdictional
+  alignment with NISG 2026
+- Optionally enables NTS (Network Time Security) for cryptographically
+  authenticated time (POL-003)
+- Polls `chronyc tracking` after start with retries so the role
+  tolerates the brief race between `systemctl start chrony` and
+  responsiveness
 
 ## Key Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ntp_servers` | Ubuntu pool servers | List of NTP servers |
-| `ntp_pools` | `[]` | List of NTP pools |
-| `ntp_allow_networks` | `[]` | Networks allowed to query as NTP clients |
-| `ntp_rtcsync` | `true` | Sync hardware RTC |
-| `ntp_makestep_threshold` | `1.0` | Step threshold in seconds |
+| Variable                       | Default                                                  | Description |
+|--------------------------------|----------------------------------------------------------|-------------|
+| `ntp_servers`                  | list: `"0.at.pool.ntp.org iburst"`, `"1.at.pool.ntp.org iburst"`, `"2.at.pool.ntp.org iburst"`, `"0.europe.pool.ntp.org iburst"` | Discrete NTP servers (each entry is a full `chrony.conf` `server` line) |
+| `ntp_pools`                    | `[]`                                                     | NTP pool entries (alternative to discrete servers) |
+| `ntp_allow_networks`           | `[]`                                                     | Networks permitted to query as clients (empty = server-only mode) |
+| `ntp_driftfile`                | `/var/lib/chrony/chrony.drift`                           | Drift file path |
+| `ntp_logdir`                   | `/var/log/chrony`                                        | Log directory |
+| `ntp_rtcsync`                  | `true`                                                   | Enable kernel RTC sync |
+| `ntp_makestep_threshold`       | `1.0`                                                    | Step threshold (seconds) |
+| `ntp_makestep_limit`           | `3`                                                      | Number of step operations permitted at startup |
+| `ntp_nts_enabled`              | `false`                                                  | Enable NTS-authenticated time |
+| `ntp_nts_servers`              | `[]`                                                     | NTS server list (e.g. `time.cloudflare.com nts iburst`) |
 
 See `defaults/main.yml` for the full list.

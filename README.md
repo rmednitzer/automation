@@ -103,6 +103,33 @@ Log retention tiers are aligned with CTL-002 evidence retention requirements (se
 - `security_audit`: 1 year (365 days)
 - `operational`: 90 days
 
+## Validation and Audit Records
+
+The codebase is periodically validated end-to-end against known-good
+sources (CIS Ubuntu Benchmark, BSI TR-02102-4, upstream OpenSSH /
+chrony / auditd / `pam_faillock` / `pam_pwquality` manuals, Ansible
+production-profile lint rules). Each pass produces an Architectural
+Decision Record under [`docs/`](docs/):
+
+| ADR | Date | Topic |
+|-----|------|-------|
+| [ADR-001](docs/ADR-001-code-validation-baseline.md) | 2026-05-24 | Code validation baseline — full index, findings, accepted design tensions, doc-parity policy |
+
+Static analysis is also enforced on every push and pull request by
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+```bash
+# Reproduce locally
+ansible-galaxy install -r requirements.yml
+yamllint .
+ansible-lint
+for pb in playbooks/*.yml; do ansible-playbook "$pb" --syntax-check; done
+```
+
+The current baseline (ADR-001) records `0 failure(s), 0 warning(s)`
+under `ansible-lint` profile `production` (FQCN and `no-changed-when`
+enforced) and `yamllint` with project overrides.
+
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE).
