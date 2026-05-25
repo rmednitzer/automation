@@ -1,0 +1,16 @@
+# CODEOWNERS — automatic reviewer assignment.
+# https://docs.github.com/en/repositories/managing-your-repositories-settings-and-customizations/customizing-your-repository/about-code-owners
+#
+# Lines are matched in order; the last matching pattern wins.
+
+* @rmednitzer
+
+# Compliance, roles, and workflows — pull review explicitly.
+/roles/                                   @rmednitzer
+/playbooks/                               @rmednitzer
+/inventories/production/                  @rmednitzer
+/docs/compliance-controls.yml             @rmednitzer
+/docs/                                    @rmednitzer
+/.github/workflows/                       @rmednitzer
+/.github/SECURITY.md                      @rmednitzer
+/scripts/validate-compliance-controls.py  @rmednitzer

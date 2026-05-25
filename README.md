@@ -125,16 +125,39 @@ Static analysis is also enforced on every push and pull request by
 
 ```bash
 # Reproduce locally
-ansible-galaxy install -r requirements.yml
-yamllint .
-ansible-lint
-for pb in playbooks/*.yml; do ansible-playbook "$pb" --syntax-check; done
+make install   # ansible-core, ansible-lint, yamllint, pre-commit, galaxy deps
+make check     # lint + syntax-check + validate-compliance
 ```
 
+`make check` runs:
+
+| Check | Tool | Purpose |
+|-------|------|---------|
+| `yamllint` | yamllint with project overrides (`.yamllint`) | YAML hygiene |
+| `ansible-lint` | production profile (FQCN, `no-changed-when` enforced) | Ansible conformance |
+| `ansible-playbook --syntax-check` | per playbook | Playbook syntax |
+| `scripts/validate-compliance-controls.py` | local Python check | `docs/compliance-controls.yml` schema and role cross-references |
+| `pre-commit run --all-files` | pre-commit | EditorConfig, end-of-file, trailing whitespace, private-key detection, hygiene |
+
 The current baseline (ADR-001) records `0 failure(s), 0 warning(s)`
-under `ansible-lint` profile `production` (FQCN and `no-changed-when`
-enforced) and `yamllint` with project overrides.
+under `ansible-lint` profile `production` and `yamllint` with project
+overrides.
+
+## Governance
+
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — contribution workflow,
+  branch naming, the compliance-controls update obligation.
+- [`CHANGELOG.md`](./CHANGELOG.md) — Keep-a-Changelog 1.1.0; PRs touching
+  roles or compliance-controls must cite affected `CTL-` / `POL-` IDs.
+- [`LIMITATIONS.md`](./LIMITATIONS.md) — known scope boundaries (Ubuntu
+  24.04 only, no Molecule yet, secrets-management out of scope, …).
+- [`Makefile`](./Makefile) — `make help` lists the local targets.
+- [`.github/SECURITY.md`](.github/SECURITY.md) — vulnerability reporting.
+- [`.github/CODEOWNERS`](.github/CODEOWNERS) — review assignment for
+  roles, compliance docs, scripts, and workflows.
+- [`CLAUDE.md`](./CLAUDE.md) — AI-authoring contract, Ansible conventions,
+  variable precedence, secrets policy.
 
 ## License
 
-Apache License 2.0 - see [LICENSE](LICENSE).
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

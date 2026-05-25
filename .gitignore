@@ -1,6 +1,7 @@
 # Ansible
 *.retry
 collections/
+.ansible/
 
 # Python
 *.pyc
