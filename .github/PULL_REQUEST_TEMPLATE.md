@@ -5,6 +5,7 @@
 ## Type of Change
 
 - [ ] New role or playbook
+- [ ] Bug fix
 - [ ] Role improvement or refactor
 - [ ] Documentation update
 - [ ] Compliance change (`docs/compliance-controls.yml` or CTL- / POL-
@@ -13,7 +14,7 @@
 
 ## Checklist
 
-- [ ] I have followed the [naming conventions](../CLAUDE.md) for this
+- [ ] I have followed the [naming conventions](/rmednitzer/automation/blob/main/CLAUDE.md) for this
       project
 - [ ] All module references use fully qualified collection names (FQCNs)
 - [ ] All tasks are named descriptively
@@ -23,11 +24,11 @@
 - [ ] `make check` passes locally
 - [ ] If I changed a variable in `roles/<name>/defaults/main.yml`, the
       same change is reflected in `roles/<name>/README.md` (per
-      [ADR-001](../docs/ADR-001-code-validation-baseline.md))
+      [ADR-001](/rmednitzer/automation/blob/main/docs/ADR-001-code-validation-baseline.md))
 - [ ] If I added or renumbered a `CTL-*` or `POL-*` identifier,
       `docs/compliance-controls.yml`, the relevant role headers, and the
       README mapping table are all updated together
-- [ ] `[Unreleased]` entry added to [`CHANGELOG.md`](../CHANGELOG.md),
+- [ ] `[Unreleased]` entry added to [`CHANGELOG.md`](/rmednitzer/automation/blob/main/CHANGELOG.md),
       citing any CTL- / POL- IDs touched
 - [ ] No unencrypted secrets are included in this PR
 

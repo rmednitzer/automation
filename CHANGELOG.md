@@ -9,6 +9,11 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- Sync governance docs (SECURITY policy shape, PR template structure,
+  copilot instructions, README Companion repositories pointer) with the
+  companion `runbooks` and `infra` repos. No role, playbook, or
+  `docs/compliance-controls.yml` change; no CTL- / POL- IDs touched.
+
 ## [0.0.0]
 
 ### Scaffolding (PR #18)
