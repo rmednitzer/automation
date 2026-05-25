@@ -1,0 +1,44 @@
+---
+# Standalone playbook for installing the SRE/Platform/Security toolchain
+# on operator hosts (workstations, admin/bastion VMs, CI runners). This
+# is intentionally separate from site-common.yml — the hardening baseline
+# applies to all fleet hosts, while this toolchain targets only the hosts
+# that need to operate Kubernetes/security workloads.
+#
+# Compliance alignment:
+#   - NIS2 Art 21.2(a)(e) — risk management, vulnerability handling
+#   - CRA Annex I Part I  — secure-by-default downloads (checksum-verified)
+#   - ISO 27001:2022 A.8.30 — supplier-relationship security
+#   - POL-002, CTL-002    — see roles/sre_toolchain/README.md
+#
+# Usage:
+#   ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml
+#   ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml \
+#     -e sre_toolchain_github_token="$GITHUB_TOKEN" \
+#     -e sre_toolchain_checksum_policy=strict
+#
+# Inventory:
+#   Target a group such as `operators` or `workstations`. Override
+#   `hosts:` below or override the limit on the CLI (-l <host>).
+
+- name: Install SRE/Platform/Security toolchain on operator hosts
+  hosts: operators
+  gather_facts: true
+
+  pre_tasks:
+    - name: Verify Ubuntu 24.04 LTS
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version == "24.04"
+        fail_msg: >-
+          This playbook only supports Ubuntu 24.04 LTS. Detected:
+          {{ ansible_distribution }} {{ ansible_distribution_version }}
+        quiet: true
+      tags:
+        - always
+
+  roles:
+    - role: sre_toolchain
+      tags:
+        - sre-toolchain

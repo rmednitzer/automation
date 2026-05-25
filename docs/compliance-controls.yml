@@ -2,7 +2,7 @@
 # Compliance Control and Policy Reference
 #
 # This file defines the internal control catalog (CTL) and ISMS policy set (POL)
-# referenced throughout the ansible-ops repository. These controls and policies
+# referenced throughout the automation repository. These controls and policies
 # are mapped to the regulatory frameworks listed in the Regulatory Scope section
 # of the README.
 #

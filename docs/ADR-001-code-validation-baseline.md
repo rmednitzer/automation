@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-05-24
-- **Deciders:** ansible-ops maintainers
+- **Deciders:** automation maintainers
 - **Supersedes:** none
 - **Related commits:**
   - `bc890aa` (2026-05-16) — Full code audit: runtime defects, unsafe defaults, metadata drift
@@ -12,7 +12,7 @@
 
 ## Context
 
-`ansible-ops` provides the technical-control surface for an EU/Austrian
+`automation` (formerly `ansible-ops`) provides the technical-control surface for an EU/Austrian
 compliance posture (NIS2 / NISG 2026 / CRA / GDPR / ISO 27001:2022). Each
 role is mapped to controls (`CTL-001..CTL-003`) and policies
 (`POL-001..POL-005`) defined in [`docs/compliance-controls.yml`](compliance-controls.yml),

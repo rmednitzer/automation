@@ -1,0 +1,43 @@
+---
+# verify_checksum_bundle.yml — probe one checksum bundle asset.
+# Caller variables:
+#   asset_name     — release asset filename whose hash we want
+#   bundle         — asset dict for the bundle to probe
+#   sha256_actual  — observed SHA256 of asset_file
+# Reads/writes:
+#   checksum_result — verified | mismatch | no_checksum (only flips away
+#                     from 'no_checksum' when the bundle contains a hash
+#                     entry for asset_name)
+
+- name: "Download bundle"
+  ansible.builtin.get_url:
+    url: "{{ bundle.browser_download_url }}"
+    dest: "{{ sre_toolchain_tmp_dir }}/{{ bundle.name }}"
+    headers: "{{ tool_headers }}"
+    mode: "0640"
+    force: true
+  become: true
+
+- name: "Search for asset hash"
+  ansible.builtin.command:
+    cmd: >-
+      awk -v name={{ asset_name | quote }} '
+        { fn=$2; sub(/^\*/, "", fn);
+          if (fn == name) { print $1; exit }
+          suf="/" name; lf=length(fn); ls=length(suf);
+          if (lf >= ls && substr(fn, lf-ls+1) == suf) { print $1; exit }
+        }
+      ' {{ (sre_toolchain_tmp_dir + '/' + bundle.name) | quote }}
+  register: bundle_hash_lookup
+  changed_when: false
+  become: true
+
+- name: "Compare bundle hash"
+  ansible.builtin.set_fact:
+    checksum_result: >-
+      {{ 'verified'
+         if (bundle_hash_lookup.stdout | length == 64
+             and bundle_hash_lookup.stdout | lower == sha256_actual | lower)
+         else ('mismatch' if bundle_hash_lookup.stdout | length == 64
+               else 'no_checksum') }}
+  when: bundle_hash_lookup.stdout | length == 64

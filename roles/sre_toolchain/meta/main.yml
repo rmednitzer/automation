@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: sre_toolchain
+  author: automation
+  description: >-
+    Install a pinned-to-latest SRE/Platform/Security toolchain (kind, flux,
+    trivy, syft, cosign, sops, age, opa, k6, kubeconform, kube-score,
+    kube-linter, dive, kubectx/kubens, kustomize, stern, conftest) from
+    upstream GitHub releases with SHA256 verification.
+  license: Apache-2.0
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+  galaxy_tags:
+    - sre
+    - platform
+    - kubernetes
+    - security
+    - toolchain
+
+dependencies: []

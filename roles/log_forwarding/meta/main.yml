@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   role_name: log_forwarding
-  author: ansible-ops
+  author: automation
   description: Centralised log forwarding via rsyslog for Ubuntu 24.04 LTS
   license: Apache-2.0
   min_ansible_version: "2.15"
