@@ -23,19 +23,19 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.37.1
+    rev: v1.38.0
     hooks:
       - id: yamllint
         args: [-c, .yamllint]
 
   - repo: https://github.com/ansible/ansible-lint
-    rev: v25.10.2
+    rev: v26.4.0
     hooks:
       - id: ansible-lint
         files: \.(yaml|yml)$
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.4.1
+    rev: 3.6.1
     hooks:
       - id: editorconfig-checker
         alias: ec

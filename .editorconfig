@@ -10,12 +10,23 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+# Markdown commonly wraps numbered list items with a 3-space continuation
+# indent. The CommonMark convention takes precedence over a fixed indent_size.
+indent_size = unset
 
-[*.{yml,yaml,json,toml}]
+[*.{json,toml}]
 indent_size = 2
 
+# YAML's continuation rules (multi-line shell blocks, folded scalars) are
+# enforced by yamllint and ansible-lint; editorconfig-checker conflicts
+# with valid Ansible YAML, so we unset the indent rule for it.
+[*.{yml,yaml}]
+indent_size = unset
+
+# Python continuation alignment (PEP 8) does not always land on indent_size
+# multiples; the interpreter and ruff/mypy are authoritative.
 [*.py]
-indent_size = 4
+indent_size = unset
 
 [*.sh]
 indent_size = 2
