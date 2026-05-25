@@ -4,23 +4,32 @@
 
 ## Type of Change
 
+- [ ] New role or playbook
 - [ ] Bug fix
-- [ ] New role or feature
 - [ ] Role improvement or refactor
 - [ ] Documentation update
-- [ ] CI/CD change
+- [ ] Compliance change (`docs/compliance-controls.yml` or CTL- / POL-
+      mapping)
+- [ ] CI / tooling change
 
 ## Checklist
 
-- [ ] I have followed the [naming conventions](CLAUDE.md) for this project
-- [ ] I have used fully qualified collection names (FQCNs) for all modules
-- [ ] I have named all tasks descriptively
-- [ ] I have run `yamllint .` with no errors
-- [ ] I have run `ansible-lint` with no errors
-- [ ] I have run `ansible-playbook --syntax-check` on affected playbooks
-- [ ] I have updated relevant documentation (role READMEs, etc.)
-- [ ] If I changed a variable in `roles/<name>/defaults/main.yml`, the same change is reflected in `roles/<name>/README.md` (per [ADR-001](../docs/ADR-001-code-validation-baseline.md))
-- [ ] If I added or renumbered a `CTL-*` or `POL-*` identifier, `docs/compliance-controls.yml`, the relevant role headers, and the README mapping table are all updated together
+- [ ] I have followed the [naming conventions](/rmednitzer/automation/blob/main/CLAUDE.md) for this
+      project
+- [ ] All module references use fully qualified collection names (FQCNs)
+- [ ] All tasks are named descriptively
+- [ ] `yamllint .` passes
+- [ ] `ansible-lint` passes (production profile)
+- [ ] `ansible-playbook --syntax-check` passes on affected playbooks
+- [ ] `make check` passes locally
+- [ ] If I changed a variable in `roles/<name>/defaults/main.yml`, the
+      same change is reflected in `roles/<name>/README.md` (per
+      [ADR-001](/rmednitzer/automation/blob/main/docs/ADR-001-code-validation-baseline.md))
+- [ ] If I added or renumbered a `CTL-*` or `POL-*` identifier,
+      `docs/compliance-controls.yml`, the relevant role headers, and the
+      README mapping table are all updated together
+- [ ] `[Unreleased]` entry added to [`CHANGELOG.md`](/rmednitzer/automation/blob/main/CHANGELOG.md),
+      citing any CTL- / POL- IDs touched
 - [ ] No unencrypted secrets are included in this PR
 
 ## Testing

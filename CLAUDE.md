@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is the Ansible automation repository (formerly `ansible-ops`) — fleet hardening, configuration management, and operator-host toolchain provisioning, aligned with EU and Austrian regulatory requirements. Licensed under the Apache License 2.0.
+`automation` is the Ansible automation repository — fleet hardening, configuration management, and operator-host toolchain provisioning, aligned with EU and Austrian regulatory requirements. Licensed under the Apache License 2.0.
 
 The repository is intentionally tool-named rather than function-named: it owns everything Ansible does, including but not limited to system hardening. Companion repositories: `infra` (OpenTofu provisioning) and `runbooks` (ad-hoc operator scripts for recurring ops tasks).
 

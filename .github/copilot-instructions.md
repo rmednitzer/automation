@@ -1,6 +1,6 @@
 # Copilot Instructions for automation
 
-This is the Ansible automation repository (formerly `ansible-ops`) — fleet hardening, configuration management, and operator-host toolchain provisioning.
+`automation` is the Ansible automation repository — fleet hardening, configuration management, and operator-host toolchain provisioning. Companion repositories: `infra` (OpenTofu) and `runbooks` (ad-hoc operator scripts).
 
 ## Repository Layout
 

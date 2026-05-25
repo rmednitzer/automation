@@ -1,30 +1,41 @@
 # Security Policy
 
-## Reporting a Vulnerability
+Security fixes apply to the current `main` branch only.
 
-If you discover a security vulnerability in this project, please report it responsibly.
+## In scope
 
-**Do not open a public issue for security vulnerabilities.**
+- Unencrypted secrets, credentials, or private keys committed to the
+  repository
+- Insecure default values in role `defaults/main.yml` that would weaken
+  the hardening baseline
+- Privilege-escalation defects in roles (unscoped `become`, untrusted
+  input to `shell` / `command`, missing `validate:` on security-critical
+  templates)
+- Missing hardening in playbooks (SSH, firewall, auditd) that would
+  cause `playbooks/site-common.yml` to leave a host less hardened than
+  the documented baseline
+- Compliance-control regressions — a CTL-/POL- mapping that no longer
+  matches the role's shipping behaviour
 
-Instead, please send an email or use GitHub's private vulnerability reporting feature:
+## Reporting
 
-1. Go to the **Security** tab of this repository
-2. Click **Report a vulnerability**
-3. Provide a detailed description of the vulnerability
+Use [GitHub private vulnerability reporting](https://github.com/rmednitzer/automation/security/advisories/new).
+Include the affected file path and line numbers, reproduction steps,
+and an impact assessment (including which CTL- / POL- ID is affected,
+if applicable).
 
-## Scope
+We acknowledge within 5 business days and provide a remediation timeline
+within 14 days.
 
-This project manages server infrastructure via Ansible. Security issues may include:
+## Best practices for contributors
 
-- Unencrypted secrets or credentials in configuration
-- Insecure default configurations
-- Privilege escalation vulnerabilities in roles
-- Missing security hardening in playbooks
-
-## Response
-
-We take security reports seriously and will respond as quickly as possible. You can expect:
-
-- Acknowledgment within 48 hours
-- A fix or mitigation plan within 7 days for critical issues
-- Credit in release notes (unless you prefer to remain anonymous)
+- Never commit unencrypted secrets, passwords, API keys, or private
+  keys. Use `ansible-vault` for sensitive data.
+- Reference vault variables with a `vault_` prefix in variable names.
+- Use fully qualified collection names (FQCNs) for all module calls.
+- Set `become: true` only on tasks that need privilege; never set it
+  globally.
+- Set `changed_when` / `failed_when` on `shell` and `command` tasks so
+  reported state matches reality.
+- Use `validate:` on security-critical config templates (`sshd_config`,
+  sudoers) so a typo cannot leave a broken file in place.
