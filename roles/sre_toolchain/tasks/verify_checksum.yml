@@ -1,0 +1,98 @@
+---
+# verify_checksum.yml — verify the SHA256 of a downloaded asset.
+# Caller variables:
+#   asset_name      — release asset filename
+#   asset_file      — path to the downloaded file on the target
+#   release_assets  — full assets list from the GitHub release JSON
+#   strict_no_sum   — true to bypass the lookup and return no_checksum
+# Sets:
+#   checksum_result — verified | mismatch | no_checksum
+
+- name: "Short-circuit for source archives"
+  ansible.builtin.set_fact:
+    checksum_result: no_checksum
+  when: strict_no_sum | bool
+
+- name: "Walk release assets"
+  when: not (strict_no_sum | bool)
+  block:
+    - name: "Compute SHA256 of downloaded file"
+      ansible.builtin.stat:
+        path: "{{ asset_file }}"
+        checksum_algorithm: sha256
+      register: asset_stat
+      become: true
+
+    - name: "Look for per-asset checksum file"
+      ansible.builtin.set_fact:
+        per_asset_checksum: >-
+          {{ (release_assets
+              | selectattr('name', 'match',
+                           '^' + (asset_name | regex_escape) + '\\.(sha256|sha256sum)$')
+              | list | first) | default({}) }}
+
+    - name: "Verify against per-asset checksum"
+      when: per_asset_checksum | length > 0
+      block:
+        - name: "Download per-asset checksum file"
+          ansible.builtin.get_url:
+            url: "{{ per_asset_checksum.browser_download_url }}"
+            dest: "{{ sre_toolchain_tmp_dir }}/{{ per_asset_checksum.name }}"
+            headers: "{{ tool_headers }}"
+            mode: "0640"
+            force: true
+          become: true
+
+        - name: "Parse hash from per-asset checksum"
+          ansible.builtin.command:
+            cmd: >-
+              awk -v name={{ asset_name | quote }} '
+                NR==1 && NF==1 && $1 ~ /^[A-Fa-f0-9]{64}$/ { print $1; exit }
+                { fn=$2; sub(/^\*/, "", fn);
+                  if (fn == name) { print $1; exit }
+                  suf="/" name; lf=length(fn); ls=length(suf);
+                  if (lf >= ls && substr(fn, lf-ls+1) == suf) { print $1; exit }
+                }
+              ' {{ (sre_toolchain_tmp_dir + '/' + per_asset_checksum.name) | quote }}
+          register: per_asset_hash_lookup
+          changed_when: false
+          become: true
+
+        - name: "Compare per-asset hash"
+          ansible.builtin.set_fact:
+            checksum_result: >-
+              {{ 'verified'
+                 if (per_asset_hash_lookup.stdout | length == 64
+                     and per_asset_hash_lookup.stdout | lower
+                         == asset_stat.stat.checksum | lower)
+                 else ('mismatch' if per_asset_hash_lookup.stdout | length == 64
+                       else 'no_checksum') }}
+
+    - name: "Fall back to bundle checksums"
+      when: per_asset_checksum | length == 0
+      block:
+        - name: "Initialise bundle lookup state"
+          ansible.builtin.set_fact:
+            checksum_result: no_checksum
+            bundle_candidates: []
+
+        - name: "Collect bundle candidates"
+          ansible.builtin.set_fact:
+            bundle_candidates: >-
+              {{ (bundle_candidates
+                  + (release_assets
+                     | selectattr('name', 'match', '(?i)' + item)
+                     | rejectattr('name', 'match', '.*\\.(pem|sig|asc|cert)$')
+                     | list))
+                  | unique(attribute='name') }}
+          loop: "{{ sre_toolchain_checksum_bundle_patterns }}"
+
+        - name: "Probe each bundle for our asset"
+          ansible.builtin.include_tasks: verify_checksum_bundle.yml
+          vars:
+            bundle: "{{ item }}"
+            sha256_actual: "{{ asset_stat.stat.checksum }}"
+          loop: "{{ bundle_candidates }}"
+          loop_control:
+            label: "{{ item.name }}"
+          when: checksum_result == 'no_checksum'

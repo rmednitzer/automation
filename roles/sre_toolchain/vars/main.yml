@@ -1,0 +1,127 @@
+---
+# Tool catalogue. Asset patterns are evaluated against release asset names
+# returned by the GitHub API — they must be valid Python regular expressions
+# (case-insensitive). Templated against the role-local facts
+# {sre_toolchain_os, sre_toolchain_arch, sre_toolchain_arch_rx,
+# sre_toolchain_trivy_flavor, sre_toolchain_conftest_arch,
+# sre_toolchain_kubelinter_rx} which are set by tasks/main.yml.
+#
+# Each entry:
+#   name             single binary name OR list of binary names from one archive
+#   repo             GitHub "owner/repo"
+#   type             binary | archive
+#   asset_pattern    primary regex
+#   asset_fallback   optional second regex tried if the primary misses
+#   archive_paths    archive: optional list of paths inside the archive for
+#                    each binary; falls back to a `find -name` on the binary
+#                    name when omitted
+#   strict_no_sum    true means treat this tool as "no checksum published"
+#                    and apply CHECKSUM_POLICY without searching the release
+#                    (used for source tarballs)
+
+sre_toolchain_tools:
+  # --- Platform / K8s core ---
+  - name: kind
+    repo: kubernetes-sigs/kind
+    type: binary
+    asset_pattern: "^kind-{{ sre_toolchain_os }}-{{ sre_toolchain_arch }}$"
+
+  - name: kustomize
+    repo: kubernetes-sigs/kustomize
+    type: archive
+    asset_pattern: "^kustomize_v.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  - name: stern
+    repo: stern/stern
+    type: archive
+    asset_pattern: "^stern_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  # --- GitOps ---
+  - name: flux
+    repo: fluxcd/flux2
+    type: archive
+    asset_pattern: "^flux_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  # --- Supply-chain / security ---
+  - name: trivy
+    repo: aquasecurity/trivy
+    type: archive
+    asset_pattern: "^trivy_.*_{{ sre_toolchain_trivy_flavor }}\\.tar\\.gz$"
+
+  - name: syft
+    repo: anchore/syft
+    type: archive
+    asset_pattern: "^syft_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  - name: cosign
+    repo: sigstore/cosign
+    type: binary
+    asset_pattern: "^cosign-{{ sre_toolchain_os }}-{{ sre_toolchain_arch }}$"
+
+  - name: sops
+    repo: getsops/sops
+    type: binary
+    asset_pattern: "^sops-.*\\.{{ sre_toolchain_os }}\\.{{ sre_toolchain_arch }}$"
+
+  # age + age-keygen ship together in the same archive.
+  - name: [age, age-keygen]
+    repo: FiloSottile/age
+    type: archive
+    asset_pattern: "^age-.*-{{ sre_toolchain_os }}-{{ sre_toolchain_arch_rx }}\\.tar\\.(gz|xz)$"
+    archive_paths: [age/age, age/age-keygen]
+
+  # --- Policy gate ---
+  - name: opa
+    repo: open-policy-agent/opa
+    type: binary
+    asset_pattern: "^opa_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}_static$"
+
+  - name: conftest
+    repo: open-policy-agent/conftest
+    type: archive
+    asset_pattern: "^conftest_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_conftest_arch }}\\.tar\\.gz$"
+
+  # --- Load testing (k6 asset naming has drifted across releases) ---
+  - name: k6
+    repo: grafana/k6
+    type: archive
+    asset_pattern: "^k6-.*-{{ sre_toolchain_os }}-{{ sre_toolchain_arch_rx }}\\.tar\\.gz$"
+    asset_fallback: "^k6-.*{{ sre_toolchain_os }}.*{{ sre_toolchain_arch_rx }}.*\\.tar\\.gz$"
+
+  # --- K8s manifest validation / lint ---
+  - name: kubeconform
+    repo: yannh/kubeconform
+    type: archive
+    asset_pattern: "^kubeconform-{{ sre_toolchain_os }}-{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  - name: kube-score
+    repo: zegl/kube-score
+    type: archive
+    asset_pattern: "^kube-score_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+  - name: kube-linter
+    repo: stackrox/kube-linter
+    type: binary
+    asset_pattern: "{{ sre_toolchain_kubelinter_rx }}"
+
+  # --- Image / OCI inspection ---
+  - name: dive
+    repo: wagoodman/dive
+    type: archive
+    asset_pattern: "^dive_.*_{{ sre_toolchain_os }}_{{ sre_toolchain_arch }}\\.tar\\.gz$"
+
+# Patterns used by checksum verification. Searched in order against asset
+# names; the first regex that yields a matching asset wins.
+sre_toolchain_checksum_bundle_patterns:
+  - "^.*{{ sre_toolchain_os }}.*{{ sre_toolchain_arch }}.*(sha256|sum|checks).*$"
+  - "^.*{{ sre_toolchain_arch }}.*{{ sre_toolchain_os }}.*(sha256|sum|checks).*$"
+  - "^(sha256sums|SHA256SUMS|checksums)(\\.txt)?$"
+  - "^.*sha256.*(sum|checks).*$"
+
+# Required CLI dependencies on the target host. Validated up-front.
+sre_toolchain_required_commands:
+  - curl
+  - jq
+  - tar
+  - unzip
+  - sha256sum

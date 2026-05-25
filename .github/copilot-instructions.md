@@ -1,6 +1,6 @@
-# Copilot Instructions for ansible-ops
+# Copilot Instructions for automation
 
-This is an Ansible operations repository for infrastructure automation and configuration management.
+This is the Ansible automation repository (formerly `ansible-ops`) — fleet hardening, configuration management, and operator-host toolchain provisioning.
 
 ## Repository Layout
 

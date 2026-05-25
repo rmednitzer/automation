@@ -1,8 +1,10 @@
-# CLAUDE.md - AI Assistant Guide for ansible-ops
+# CLAUDE.md - AI Assistant Guide for automation
 
 ## Project Overview
 
-This is an Ansible operations repository for infrastructure automation and configuration management, aligned with EU and Austrian regulatory requirements. Licensed under the Apache License 2.0.
+This is the Ansible automation repository (formerly `ansible-ops`) — fleet hardening, configuration management, and operator-host toolchain provisioning, aligned with EU and Austrian regulatory requirements. Licensed under the Apache License 2.0.
+
+The repository is intentionally tool-named rather than function-named: it owns everything Ansible does, including but not limited to system hardening. Companion repositories: `infra` (OpenTofu provisioning) and `runbooks` (ad-hoc operator scripts for recurring ops tasks).
 
 ## Compliance Alignment
 
@@ -26,7 +28,7 @@ When adding new controls, map them to the relevant regulatory articles and add d
 This repository follows the standard Ansible best-practices layout:
 
 ```
-ansible-ops/
+automation/
 ├── CLAUDE.md              # This file - AI assistant guide
 ├── LICENSE                # Apache License 2.0
 ├── README.md              # Project documentation
@@ -70,10 +72,12 @@ ansible-ops/
 
 ## Current State
 
-The repository contains a complete compliance-aligned hardening baseline with 10 roles:
-`common`, `users`, `ntp`, `ssh_hardening`, `ufw`, `fail2ban`, `aide`, `rkhunter`, `log_forwarding`, `auditd`.
+The repository contains:
 
-The main playbook `playbooks/site-common.yml` applies all roles to Ubuntu 24.04 LTS hosts.
+- A compliance-aligned hardening baseline of 10 roles applied to all fleet hosts by `playbooks/site-common.yml`: `common`, `users`, `ntp`, `ssh_hardening`, `ufw`, `fail2ban`, `aide`, `rkhunter`, `log_forwarding`, `auditd`.
+- An operator-host toolchain role (`sre_toolchain`) invoked by `playbooks/sre-toolchain.yml`, installing pinned-to-latest SRE/Platform/Security binaries from upstream GitHub releases with SHA256 verification. This is **not** part of the hardening baseline — it targets only operator hosts (workstations, admin/bastion VMs, CI runners).
+
+Target OS for every role: Ubuntu 24.04 LTS.
 
 The codebase is periodically re-validated against known-good sources (CIS Ubuntu Benchmark, BSI TR-02102-4, upstream OpenSSH / chrony / auditd / pam_faillock / pam_pwquality manuals, Ansible production-profile lint rules). The latest baseline and its findings are recorded in [`docs/ADR-001-code-validation-baseline.md`](docs/ADR-001-code-validation-baseline.md). When opening a new ADR, increment the number and follow the same structure (Status, Date, Context, Decisions, Consequences, References).
 

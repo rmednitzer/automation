@@ -1,0 +1,150 @@
+---
+# install_kubectx.yml — install kubectx/kubens from the upstream source
+# tarball. The project ships both as shell scripts inside a tagged source
+# archive and publishes no per-asset checksum; under
+# sre_toolchain_checksum_policy: strict this tool is intentionally skipped.
+
+- name: "Compose target paths"
+  ansible.builtin.set_fact:
+    kubectx_target_ctx: "{{ sre_toolchain_dest_dir }}/kubectx"
+    kubectx_target_ns: "{{ sre_toolchain_dest_dir }}/kubens"
+    tool_headers: >-
+      {{
+        {'Accept': 'application/vnd.github+json',
+         'User-Agent': 'sre-toolchain-installer/1.0'}
+        | combine(
+            {'Authorization': 'Bearer ' + sre_toolchain_github_token}
+            if sre_toolchain_github_token | length > 0 else {})
+      }}
+
+- name: "Check whether already installed"
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: kubectx_stat
+  loop:
+    - "{{ kubectx_target_ctx }}"
+    - "{{ kubectx_target_ns }}"
+  become: true
+
+- name: "Decide whether to skip"
+  ansible.builtin.set_fact:
+    kubectx_skip: >-
+      {{ (not sre_toolchain_force)
+         and (kubectx_stat.results | map(attribute='stat.exists')
+                                   | select('equalto', true)
+                                   | list | length) == 2 }}
+
+- name: "SKIP — already installed"
+  when: kubectx_skip
+  block:
+    - name: "Read installed version from manifest"
+      ansible.builtin.command:
+        cmd: >-
+          jq -r '.tools.kubectx // "unknown"' {{ sre_toolchain_version_log | quote }}
+      register: kubectx_existing
+      changed_when: false
+      failed_when: false
+      become: true
+    - name: "Record existing version"
+      ansible.builtin.set_fact:
+        sre_toolchain_installed: >-
+          {{ sre_toolchain_installed
+             | combine({'kubectx': kubectx_existing.stdout | default('unknown'),
+                        'kubens':  kubectx_existing.stdout | default('unknown')}) }}
+        sre_toolchain_skip: "{{ (sre_toolchain_skip | int) + 1 }}"
+
+- name: "Install from source tarball"
+  when: not kubectx_skip
+  block:
+    - name: "Abort under strict checksum policy (no upstream sums)"
+      ansible.builtin.fail:
+        msg: >-
+          STRICT: kubectx/kubens publishes no checksum for its source
+          tarball. Set sre_toolchain_checksum_policy: best-effort or add
+          kubectx to sre_toolchain_skip.
+      when: sre_toolchain_checksum_policy == 'strict'
+
+    - name: "Fetch latest release tag"
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/ahmetb/kubectx/releases/latest
+        headers: "{{ tool_headers }}"
+        return_content: true
+        status_code: [200]
+        body_format: json
+      register: kubectx_release
+
+    - name: "Resolve archive URL"
+      ansible.builtin.set_fact:
+        kubectx_tag: "{{ kubectx_release.json.tag_name }}"
+        kubectx_url: >-
+          https://github.com/ahmetb/kubectx/archive/refs/tags/{{
+            kubectx_release.json.tag_name }}.tar.gz
+
+    - name: "Announce planned install"
+      ansible.builtin.debug:
+        msg: "INSTALL kubectx,kubens @ {{ kubectx_tag }} (source tarball)"
+
+    - name: "Prepare extract directory"
+      ansible.builtin.file:
+        path: "{{ sre_toolchain_tmp_dir }}/kubectx-src"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      become: true
+
+    - name: "Download source archive"
+      ansible.builtin.get_url:
+        url: "{{ kubectx_url }}"
+        dest: "{{ sre_toolchain_tmp_dir }}/kubectx-src.tgz"
+        headers: "{{ tool_headers }}"
+        mode: "0640"
+        force: true
+      become: true
+
+    - name: "Extract source archive"
+      ansible.builtin.unarchive:
+        src: "{{ sre_toolchain_tmp_dir }}/kubectx-src.tgz"
+        dest: "{{ sre_toolchain_tmp_dir }}/kubectx-src"
+        remote_src: true
+      become: true
+
+    - name: "Install kubectx"
+      ansible.builtin.copy:
+        src: >-
+          {{ sre_toolchain_tmp_dir }}/kubectx-src/kubectx-{{
+            kubectx_tag | regex_replace('^v', '') }}/kubectx
+        dest: "{{ kubectx_target_ctx }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      become: true
+
+    - name: "Install kubens"
+      ansible.builtin.copy:
+        src: >-
+          {{ sre_toolchain_tmp_dir }}/kubectx-src/kubectx-{{
+            kubectx_tag | regex_replace('^v', '') }}/kubens
+        dest: "{{ kubectx_target_ns }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      become: true
+
+    - name: "Record installed version"
+      ansible.builtin.set_fact:
+        sre_toolchain_installed: >-
+          {{ sre_toolchain_installed
+             | combine({'kubectx': kubectx_tag, 'kubens': kubectx_tag}) }}
+        sre_toolchain_ok: "{{ (sre_toolchain_ok | int) + 1 }}"
+  rescue:
+    - name: "Mark failure and continue"
+      ansible.builtin.set_fact:
+        sre_toolchain_fail: "{{ (sre_toolchain_fail | int) + 1 }}"
+    - name: "Log failure"
+      ansible.builtin.debug:
+        msg: >-
+          FAIL kubectx,kubens —
+          {{ ansible_failed_result.msg | default('see preceding task output') }}

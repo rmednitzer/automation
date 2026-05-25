@@ -1,6 +1,8 @@
-# ansible-ops
+# automation
 
-Infrastructure automation and configuration management with Ansible, aligned with EU and Austrian regulatory requirements.
+Ansible automation for the fleet — system hardening, configuration management, and operator-host tooling — aligned with EU and Austrian regulatory requirements.
+
+This repository was previously named `ansible-ops`.
 
 ## Regulatory Scope
 
@@ -60,6 +62,9 @@ ansible-playbook -i inventories/<env>/hosts playbooks/site-common.yml --tags ssh
 | `rkhunter` | Rootkit detection (hidden processes, kernel modules, signatures) | POL-002, NIS2 Art 21.2(a)(b), GDPR Art 32, ISO 27001 A.8.7 |
 | `log_forwarding` | Centralised log forwarding via rsyslog (TLS) | CTL-002, CTL-003, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 5(2) |
 | `auditd` | System audit logging (CIS + NIS2/GDPR rules) | CTL-002, CTL-003, POL-004, POL-005, GDPR Art 5(2), NIS2 Art 21.2(a) |
+| `sre_toolchain` | SRE/Platform/Security toolchain installer (kind, flux, trivy, sops, cosign, opa, k6, …) for operator hosts | NIS2 Art 21.2(a)(e), CRA Annex I, ISO 27001 A.8.30, POL-002, CTL-002 |
+
+The first ten roles are the fleet hardening baseline applied by `playbooks/site-common.yml`. `sre_toolchain` targets operator hosts only (workstations, admin/bastion, CI runners) and ships its own playbook at `playbooks/sre-toolchain.yml`.
 
 ## Repository Structure
 

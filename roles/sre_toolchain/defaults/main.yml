@@ -1,0 +1,45 @@
+---
+# SRE toolchain role defaults
+#
+# Installs a minimal, high-leverage SRE/Platform/Security toolchain into a
+# managed binary directory. Pinned to GitHub release assets, verified by
+# SHA256 where the upstream publishes a checksum, and tracked in a JSON
+# manifest for later audit.
+#
+# Compliance references:
+#   - NIS2 Art 21.2(a) — risk-analysis and information-system security policies
+#   - NIS2 Art 21.2(e) — vulnerability handling
+#   - CRA Annex I Part I — supply-chain integrity (verified downloads)
+#   - ISO 27001:2022 A.8.30 — supplier-relationship security (checksum proof)
+#   - POL-002 — vulnerability and patch management
+#   - CTL-002 — evidence retention (installed-versions manifest)
+
+# Install target directory. /usr/local/bin keeps tools on the default $PATH
+# without colliding with distribution-managed binaries under /usr/bin.
+sre_toolchain_dest_dir: /usr/local/bin
+
+# Overwrite existing binaries when they are already present. Off by default
+# so re-runs are idempotent and do not churn working tools.
+sre_toolchain_force: false
+
+# Checksum enforcement.
+#   strict      — abort a tool when upstream publishes no checksum.
+#   best-effort — log a warning and proceed (matches the bash installer default).
+sre_toolchain_checksum_policy: best-effort
+
+# Where to write the installed-versions manifest (JSON). The manifest is
+# updated after each run and serves as evidence under CTL-002.
+sre_toolchain_version_log: "{{ sre_toolchain_dest_dir }}/.sre-toolchain-versions.json"
+
+# Optional GitHub API token. Unauthenticated GitHub releases are
+# rate-limited to 60 requests per hour per IP, which is not enough for a
+# full install. Pass a token via inventory, environment, or vault.
+sre_toolchain_github_token: ""
+
+# Scratch directory for downloads. Created with mode 0700 on every run.
+sre_toolchain_tmp_dir: /var/tmp/sre-toolchain-installer
+
+# Per-tool overrides. Map a tool name to "skip" to exclude it from a run
+# without editing vars/main.yml. Useful when a single tool's upstream
+# changes its asset naming and the role has not yet caught up.
+sre_toolchain_skip: []

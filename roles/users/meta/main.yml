@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   role_name: users
-  author: ansible-ops
+  author: automation
   description: User management, sudo, and password policy for Ubuntu 24.04 LTS
   license: Apache-2.0
   min_ansible_version: "2.15"

@@ -1,0 +1,24 @@
+---
+# write_manifest.yml — emit the installed-versions JSON manifest.
+# CTL-002 evidence: records what was installed, at what version, with which
+# checksum policy, when, and on which architecture. The bash installer
+# produced the same shape — preserved here so downstream audit tooling
+# does not need to change.
+
+- name: "Render manifest payload"
+  ansible.builtin.set_fact:
+    sre_toolchain_manifest:
+      generated: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}"
+      arch: "{{ sre_toolchain_arch }}"
+      os: "{{ sre_toolchain_os }}"
+      checksum_policy: "{{ sre_toolchain_checksum_policy }}"
+      tools: "{{ sre_toolchain_installed }}"
+
+- name: "Write manifest"
+  ansible.builtin.copy:
+    content: "{{ sre_toolchain_manifest | to_nice_json(indent=2, sort_keys=true) }}\n"
+    dest: "{{ sre_toolchain_version_log }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true

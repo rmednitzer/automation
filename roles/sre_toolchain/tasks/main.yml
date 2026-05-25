@@ -1,0 +1,131 @@
+---
+# SRE/Platform/Security toolchain installer for Ubuntu 24.04 LTS
+# NIS2 Art 21.2(a)(e), CRA Annex I Part I, ISO 27001 A.8.30, POL-002, CTL-002
+
+- name: Resolve architecture facts
+  ansible.builtin.set_fact:
+    sre_toolchain_os: linux
+    sre_toolchain_arch: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}[ansible_architecture]
+         | default('') }}
+  tags:
+    - sre-toolchain
+
+- name: Fail when the target architecture is unsupported
+  ansible.builtin.fail:
+    msg: >-
+      Unsupported architecture {{ ansible_architecture }}. The SRE toolchain
+      role only supports amd64 (x86_64) and arm64 (aarch64).
+  when: sre_toolchain_arch | length == 0
+  tags:
+    - sre-toolchain
+
+- name: Resolve per-tool architecture aliases
+  ansible.builtin.set_fact:
+    sre_toolchain_arch_rx: >-
+      {{ '(amd64|x86_64|x64)' if sre_toolchain_arch == 'amd64'
+         else '(arm64|aarch64)' }}
+    sre_toolchain_trivy_flavor: >-
+      {{ 'Linux-64bit' if sre_toolchain_arch == 'amd64'
+         else 'Linux-ARM64' }}
+    sre_toolchain_conftest_arch: >-
+      {{ 'x86_64' if sre_toolchain_arch == 'amd64'
+         else 'arm64' }}
+    sre_toolchain_kubelinter_rx: >-
+      {{ '^kube-linter-' + sre_toolchain_os + '$' if sre_toolchain_arch == 'amd64'
+         else '^kube-linter-' + sre_toolchain_os + '_arm64$' }}
+  tags:
+    - sre-toolchain
+
+- name: Verify required commands are present on the target host
+  ansible.builtin.command:
+    cmd: "command -v {{ item }}"
+  loop: "{{ sre_toolchain_required_commands }}"
+  register: sre_toolchain_dep_check
+  changed_when: false
+  failed_when: sre_toolchain_dep_check.rc != 0
+  become: true
+  tags:
+    - sre-toolchain
+
+- name: Ensure install directory exists
+  ansible.builtin.file:
+    path: "{{ sre_toolchain_dest_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  tags:
+    - sre-toolchain
+
+- name: Ensure scratch directory exists
+  ansible.builtin.file:
+    path: "{{ sre_toolchain_tmp_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+  tags:
+    - sre-toolchain
+
+- name: Warn when GITHUB_TOKEN is not provided
+  ansible.builtin.debug:
+    msg: >-
+      sre_toolchain_github_token is empty. Unauthenticated GitHub API
+      requests are capped at 60/hour and the installer needs ~17 calls.
+      Set sre_toolchain_github_token in inventory or vault to avoid
+      mid-run rate limiting.
+  when: sre_toolchain_github_token | length == 0
+  tags:
+    - sre-toolchain
+
+- name: Reset run-level counters
+  ansible.builtin.set_fact:
+    sre_toolchain_installed: {}
+    sre_toolchain_ok: 0
+    sre_toolchain_skip: 0
+    sre_toolchain_fail: 0
+  tags:
+    - sre-toolchain
+
+- name: Install regular toolchain entries
+  ansible.builtin.include_tasks: install_tool.yml
+  vars:
+    tool: "{{ item }}"
+  loop: "{{ sre_toolchain_tools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: (item.name if item.name is string else item.name | first) not in sre_toolchain_skip
+  tags:
+    - sre-toolchain
+
+- name: Install kubectx/kubens (source tarball, special-cased)
+  ansible.builtin.include_tasks: install_kubectx.yml
+  when: "'kubectx' not in sre_toolchain_skip"
+  tags:
+    - sre-toolchain
+
+- name: Write installed-versions manifest
+  ansible.builtin.include_tasks: write_manifest.yml
+  when: sre_toolchain_installed | length > 0
+  tags:
+    - sre-toolchain
+
+- name: Summarise the run
+  ansible.builtin.debug:
+    msg: >-
+      sre_toolchain summary: installed={{ sre_toolchain_ok }}
+      skipped={{ sre_toolchain_skip }} failed={{ sre_toolchain_fail }}
+  tags:
+    - sre-toolchain
+
+- name: Fail the play when any tool failed to install
+  ansible.builtin.fail:
+    msg: >-
+      {{ sre_toolchain_fail }} tool(s) failed to install. Review the
+      preceding tasks for the specific failures.
+  when: sre_toolchain_fail | int > 0
+  tags:
+    - sre-toolchain

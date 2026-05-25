@@ -1,0 +1,212 @@
+---
+# install_tool.yml — install a single SRE toolchain entry.
+# Caller variables:
+#   tool — one element from sre_toolchain_tools
+
+- name: "Normalise binary list and target paths"
+  ansible.builtin.set_fact:
+    tool_bins: "{{ [tool.name] if (tool.name is string) else tool.name }}"
+    tool_primary: "{{ tool.name if (tool.name is string) else tool.name | first }}"
+    tool_headers: >-
+      {{
+        {'Accept': 'application/vnd.github+json',
+         'User-Agent': 'sre-toolchain-installer/1.0'}
+        | combine(
+            {'Authorization': 'Bearer ' + sre_toolchain_github_token}
+            if sre_toolchain_github_token | length > 0 else {})
+      }}
+
+- name: "Check for existing binaries"
+  ansible.builtin.stat:
+    path: "{{ sre_toolchain_dest_dir }}/{{ item }}"
+  register: tool_stat
+  loop: "{{ tool_bins }}"
+  become: true
+
+- name: "Decide whether to skip"
+  ansible.builtin.set_fact:
+    tool_skip: >-
+      {{ (not sre_toolchain_force)
+         and (tool_stat.results | map(attribute='stat.exists')
+                                | select('equalto', true)
+                                | list | length) == (tool_bins | length) }}
+
+- name: "SKIP — already installed"
+  when: tool_skip
+  block:
+    - name: "Read installed version from manifest"
+      ansible.builtin.command:
+        cmd: >-
+          jq -r --arg b {{ tool_primary | quote }}
+            '.tools[$b] // "unknown"' {{ sre_toolchain_version_log | quote }}
+      register: tool_existing_version
+      changed_when: false
+      failed_when: false
+      become: true
+    - name: "Record existing version"
+      ansible.builtin.set_fact:
+        sre_toolchain_installed: >-
+          {{ sre_toolchain_installed
+             | combine(dict(tool_bins
+                            | zip([tool_existing_version.stdout | default('unknown')]
+                                  * (tool_bins | length)))) }}
+        sre_toolchain_skip: "{{ (sre_toolchain_skip | int) + 1 }}"
+
+- name: "Install"
+  when: not tool_skip
+  block:
+    - name: "Fetch latest release metadata"
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/{{ tool.repo }}/releases/latest"
+        headers: "{{ tool_headers }}"
+        return_content: true
+        status_code: [200]
+        body_format: json
+      register: tool_release
+
+    - name: "Select primary asset"
+      ansible.builtin.set_fact:
+        tool_asset: >-
+          {{ (tool_release.json.assets
+              | selectattr('name', 'match', '(?i)' + tool.asset_pattern)
+              | list | first) | default({}) }}
+
+    - name: "Try fallback pattern if primary missed"
+      ansible.builtin.set_fact:
+        tool_asset: >-
+          {{ (tool_release.json.assets
+              | selectattr('name', 'match', '(?i)' + tool.asset_fallback)
+              | list | first) | default({}) }}
+      when:
+        - tool_asset | length == 0
+        - tool.asset_fallback is defined
+
+    - name: "Fail when no asset matched"
+      ansible.builtin.fail:
+        msg: >-
+          No release asset for {{ tool.repo }} matched
+          '{{ tool.asset_pattern }}'
+          {{ '(fallback: ' + tool.asset_fallback + ')' if tool.asset_fallback is defined else '' }}
+      when: tool_asset | length == 0
+
+    - name: "Announce planned install"
+      ansible.builtin.debug:
+        msg: >-
+          INSTALL {{ tool_bins | join(',') }}
+          @ {{ tool_release.json.tag_name }} asset={{ tool_asset.name }}
+
+    - name: "Download asset"
+      ansible.builtin.get_url:
+        url: "{{ tool_asset.browser_download_url }}"
+        dest: "{{ sre_toolchain_tmp_dir }}/{{ tool_asset.name }}"
+        headers: "{{ tool_headers }}"
+        mode: "0640"
+        force: true
+      become: true
+
+    - name: "Verify SHA256"
+      ansible.builtin.include_tasks: verify_checksum.yml
+      vars:
+        asset_name: "{{ tool_asset.name }}"
+        asset_file: "{{ sre_toolchain_tmp_dir }}/{{ tool_asset.name }}"
+        release_assets: "{{ tool_release.json.assets }}"
+        strict_no_sum: "{{ tool.strict_no_sum | default(false) }}"
+
+    - name: "Honour checksum policy"
+      ansible.builtin.fail:
+        msg: >-
+          {{ 'SHA256 MISMATCH for ' + tool_asset.name
+             if checksum_result == 'mismatch'
+             else 'STRICT: no checksum published for ' + tool_asset.name }}
+      when: >-
+        checksum_result == 'mismatch'
+        or (checksum_result == 'no_checksum'
+            and sre_toolchain_checksum_policy == 'strict')
+
+    - name: "Install single binary"
+      ansible.builtin.copy:
+        src: "{{ sre_toolchain_tmp_dir }}/{{ tool_asset.name }}"
+        dest: "{{ sre_toolchain_dest_dir }}/{{ tool_primary }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      become: true
+      when: tool.type == 'binary'
+
+    - name: "Prepare extract directory"
+      ansible.builtin.file:
+        path: "{{ sre_toolchain_tmp_dir }}/{{ tool_primary }}_ext"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      become: true
+      when: tool.type == 'archive'
+
+    - name: "Extract archive"
+      ansible.builtin.unarchive:
+        src: "{{ sre_toolchain_tmp_dir }}/{{ tool_asset.name }}"
+        dest: "{{ sre_toolchain_tmp_dir }}/{{ tool_primary }}_ext"
+        remote_src: true
+      become: true
+      when: tool.type == 'archive'
+
+    - name: "Locate binaries in archive"
+      ansible.builtin.find:
+        paths: "{{ sre_toolchain_tmp_dir }}/{{ tool_primary }}_ext"
+        recurse: true
+        patterns: "{{ tool_bins }}"
+        file_type: file
+      register: tool_find
+      become: true
+      when:
+        - tool.type == 'archive'
+        - tool.archive_paths is not defined
+
+    - name: "Install binaries from archive (explicit paths)"
+      ansible.builtin.copy:
+        src: >-
+          {{ sre_toolchain_tmp_dir }}/{{ tool_primary }}_ext/{{ item.1 }}
+        dest: "{{ sre_toolchain_dest_dir }}/{{ item.0 }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      become: true
+      loop: "{{ tool_bins | zip(tool.archive_paths) | list }}"
+      when:
+        - tool.type == 'archive'
+        - tool.archive_paths is defined
+
+    - name: "Install binaries from archive (auto-located)"
+      ansible.builtin.copy:
+        src: "{{ (tool_find.files | selectattr('path', 'search', '/' + item + '$') | list | first).path }}"
+        dest: "{{ sre_toolchain_dest_dir }}/{{ item }}"
+        owner: root
+        group: root
+        mode: "0755"
+        remote_src: true
+      become: true
+      loop: "{{ tool_bins }}"
+      when:
+        - tool.type == 'archive'
+        - tool.archive_paths is not defined
+
+    - name: "Record installed version"
+      ansible.builtin.set_fact:
+        sre_toolchain_installed: >-
+          {{ sre_toolchain_installed
+             | combine(dict(tool_bins
+                            | zip([tool_release.json.tag_name]
+                                  * (tool_bins | length)))) }}
+        sre_toolchain_ok: "{{ (sre_toolchain_ok | int) + 1 }}"
+  rescue:
+    - name: "Mark failure and continue"
+      ansible.builtin.set_fact:
+        sre_toolchain_fail: "{{ (sre_toolchain_fail | int) + 1 }}"
+    - name: "Log failure"
+      ansible.builtin.debug:
+        msg: >-
+          FAIL {{ tool_bins | join(',') }} ({{ tool.repo }}) —
+          {{ ansible_failed_result.msg | default('see preceding task output') }}
