@@ -145,19 +145,14 @@ overrides.
 
 ## Governance
 
-- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — contribution workflow,
-  branch naming, the compliance-controls update obligation.
-- [`CHANGELOG.md`](./CHANGELOG.md) — Keep-a-Changelog 1.1.0; PRs touching
-  roles or compliance-controls must cite affected `CTL-` / `POL-` IDs.
-- [`LIMITATIONS.md`](./LIMITATIONS.md) — known scope boundaries (Ubuntu
-  24.04 only, no Molecule yet, secrets-management out of scope, …).
-- [`Makefile`](./Makefile) — `make help` lists the local targets.
-- [`.github/SECURITY.md`](.github/SECURITY.md) — vulnerability reporting.
-- [`.github/CODEOWNERS`](.github/CODEOWNERS) — review assignment for
-  roles, compliance docs, scripts, and workflows.
-- [`CLAUDE.md`](./CLAUDE.md) — AI-authoring contract, Ansible conventions,
-  variable precedence, secrets policy.
-
-## License
-
-Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+| File | Purpose |
+|------|---------|
+| [`CLAUDE.md`](./CLAUDE.md) | Conventions, FQCN policy, variable precedence |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | Workflow, compliance-controls obligation |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Keep a Changelog 1.1.0; cite CTL- / POL- IDs |
+| [`LIMITATIONS.md`](./LIMITATIONS.md) | Known scope boundaries (L1–L7) |
+| [`Makefile`](./Makefile) | `make help` for local targets |
+| [`docs/compliance-controls.yml`](./docs/compliance-controls.yml) | Audit-facing CTL- / POL- catalog |
+| [`.github/SECURITY.md`](.github/SECURITY.md) | Vulnerability reporting |
+| [`.github/CODEOWNERS`](.github/CODEOWNERS) | Review assignment |
+| [`LICENSE`](./LICENSE) / [`NOTICE`](./NOTICE) | Apache 2.0 |
