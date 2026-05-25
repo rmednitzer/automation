@@ -41,8 +41,11 @@ with failing CI.
    [`docs/ADR-001-code-validation-baseline.md`](./docs/ADR-001-code-validation-baseline.md)
    is the reference shape.
 
-Suspected vulnerabilities: [`.github/SECURITY.md`](./.github/SECURITY.md) —
-never open a public issue.
+PR template:
+[`.github/PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md).
+Suspected vulnerabilities: see
+[`.github/SECURITY.md`](./.github/SECURITY.md) — never open a public
+issue.
 
 By contributing, you agree your contribution is licensed under
 [Apache License 2.0](./LICENSE).

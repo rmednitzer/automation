@@ -2,7 +2,7 @@
 
 Ansible automation for the fleet — system hardening, configuration management, and operator-host tooling — aligned with EU and Austrian regulatory requirements.
 
-This repository was previously named `ansible-ops`.
+Companion repositories: [`infra`](https://github.com/rmednitzer/infra) (OpenTofu provisioning) and [`runbooks`](https://github.com/rmednitzer/runbooks) (ad-hoc operator scripts).
 
 ## Regulatory Scope
 
@@ -153,6 +153,7 @@ overrides.
 | [`LIMITATIONS.md`](./LIMITATIONS.md) | Known scope boundaries (L1–L7) |
 | [`Makefile`](./Makefile) | `make help` for local targets |
 | [`docs/compliance-controls.yml`](./docs/compliance-controls.yml) | Audit-facing CTL- / POL- catalog |
-| [`.github/SECURITY.md`](.github/SECURITY.md) | Vulnerability reporting |
-| [`.github/CODEOWNERS`](.github/CODEOWNERS) | Review assignment |
+| [`.github/SECURITY.md`](./.github/SECURITY.md) | Vulnerability reporting |
+| [`.github/PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md) | PR checklist |
+| [`.github/CODEOWNERS`](./.github/CODEOWNERS) | Review assignment |
 | [`LICENSE`](./LICENSE) / [`NOTICE`](./NOTICE) | Apache 2.0 |

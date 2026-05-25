@@ -9,12 +9,10 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
-- Slim `CONTRIBUTING.md`, `CHANGELOG.md`, README Governance section;
-  convert `LIMITATIONS.md` to a table. No behavior change.
-
 ## [0.0.0]
 
 ### Scaffolding (PR #18)
+
 - Governance: `NOTICE`, `CHANGELOG.md`, `CONTRIBUTING.md`,
   `LIMITATIONS.md`, `.github/CODEOWNERS`, `.editorconfig`.
 - `Makefile` (`help`, `install`, `lint`, `syntax-check`,
@@ -25,8 +23,8 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
   profile), EditorConfig, hygiene.
 - CI: `validate-compliance` and `pre-commit` jobs added.
 
-### Initial Ansible structure (post-rename)
-- Renamed from `ansible-ops`.
+### Initial Ansible structure
+
 - 11 roles: `common`, `users`, `ntp`, `ssh_hardening`, `ufw`,
   `fail2ban`, `aide`, `rkhunter`, `log_forwarding`, `auditd`,
   `sre_toolchain`.
