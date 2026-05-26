@@ -44,7 +44,7 @@ Base system management and hardening for Ubuntu 24.04 LTS (Noble Numbat).
 | `common_journal_max_size` | `500M` | `SystemMaxUse` for `systemd-journald` |
 | `common_journal_max_retention` | `6month` | `MaxRetentionSec` for `systemd-journald` |
 | `common_motd_enabled` | `true` | Deploy the MOTD banner |
-| `common_kernel_modules_blacklist` | `cramfs`, `freevxfs`, `hfs`, `hfsplus`, `jffs2`, `udf`, `usb-storage`, `dccp`, `sctp`, `rds`, `tipc` | Modules blacklisted by `modprobe` |
+| `common_kernel_modules_blacklist` | list — `[cramfs, freevxfs, hfs, hfsplus, jffs2, udf, usb-storage, dccp, sctp, rds, tipc]` | Modules blacklisted by `modprobe` |
 | `common_harden_tmp` | `true` | Write `tmpfs` `/tmp` and `/var/tmp` bind entries |
 | `common_tmp_size` | `2G` | `tmpfs` size for `/tmp` |
 | `common_harden_tmp_remount` | `false` | Remount immediately on apply (off — live remount discards `/tmp` and disrupts open file handles; safe on fresh hosts only) |

@@ -30,8 +30,8 @@ Rootkit detection via rkhunter for Ubuntu 24.04 LTS.
 | `rkhunter_enable_tests` | `all` | `ENABLE_TESTS` value |
 | `rkhunter_disable_tests` | `suspscan hidden_ports hidden_procs deleted_files packet_cap_apps` | Tests known to false-positive on Ubuntu |
 | `rkhunter_allow_script_whitelisting` | `true` | Allow `SCRIPTWHITELIST` entries |
-| `rkhunter_scriptwhitelist` | `/usr/bin/egrep`, `/usr/bin/fgrep`, `/usr/bin/which`, `/usr/bin/ldd` | Known-good script replacements |
-| `rkhunter_allowhiddendir` | `/dev/.udev`, `/dev/.static`, `/dev/.initramfs` | Allowed hidden directories on Ubuntu |
-| `rkhunter_allowhiddenfile` | `/dev/.blkid.tab`, `/dev/.blkid.tab.old` | Allowed hidden files on Ubuntu |
+| `rkhunter_scriptwhitelist` | list — `[/usr/bin/egrep, /usr/bin/fgrep, /usr/bin/which, /usr/bin/ldd]` | Known-good script replacements |
+| `rkhunter_allowhiddendir` | list — `[/dev/.udev, /dev/.static, /dev/.initramfs]` | Allowed hidden directories on Ubuntu |
+| `rkhunter_allowhiddenfile` | list — `[/dev/.blkid.tab, /dev/.blkid.tab.old]` | Allowed hidden files on Ubuntu |
 
 Full list in `defaults/main.yml`.

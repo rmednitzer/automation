@@ -65,15 +65,15 @@ the project commits to as a result.
 ## Methodology
 
 1. **Code index** — every YAML, Jinja2, and Markdown file under the
-   repository root read end-to-end and cross-tabulated against the
+   repository root was read end-to-end and cross-tabulated against the
    role/template/handler matrix.
 2. **Static analysis** — `yamllint` (default rules + project overrides)
    and `ansible-lint` (profile `production`, FQCN enforced,
-   `no-changed-when` enforced) executed against the working tree after
-   `ansible-galaxy install -r requirements.yml`. Playbook
-   `--syntax-check` run on `playbooks/*.yml`.
+   `no-changed-when` enforced) were executed against the working tree
+   after `ansible-galaxy install -r requirements.yml`. Playbook
+   `--syntax-check` was run on `playbooks/*.yml`.
 3. **Validation against known-good sources** — role behaviour and
-   template content compared against:
+   template content were compared against:
    - CIS Ubuntu Linux Benchmark (auditd rule keys; password policy;
      filesystem mount options; `/etc/login.defs` keys; sysctl baseline)
    - BSI TR-02102-4 (SSH KEX / cipher / MAC selection)
@@ -90,10 +90,10 @@ the project commits to as a result.
      handler/notify pattern, `changed_when`/`failed_when` on
      command/shell tasks, `validate:` on config templates
 4. **Doc parity check** — every key variable advertised in each
-   `roles/<name>/README.md` reconciled against
+   `roles/<name>/README.md` was reconciled against
    `roles/<name>/defaults/main.yml`.
 5. **Compliance traceability** — `roles/<name>/defaults/main.yml`
-   compliance headers checked against the role list in each
+   compliance headers were checked against the role list in each
    control/policy in `docs/compliance-controls.yml`.
 
 ## Findings
