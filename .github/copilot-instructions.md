@@ -4,7 +4,7 @@
 
 ## Repository Layout
 
-Standard Ansible best-practices layout with `inventories/` (production, staging, development), `playbooks/`, `roles/`, `group_vars/`, `host_vars/`, `plugins/`, `files/`, and `templates/` directories. See `CLAUDE.md` for the full structure.
+Standard Ansible best-practices layout with `inventories/<env>/` (production, staging, development, each with their own `group_vars/` and `host_vars/`), `playbooks/`, `roles/`, and a global `group_vars/all.yml`. Files and templates live inside each role (`roles/<role>/files/`, `roles/<role>/templates/`) — there is no top-level `files/`, `templates/`, `host_vars/`, or `plugins/` directory. Plugin subdirectories should only be created on demand alongside the matching `ansible.cfg` plugin-path setting. See `CLAUDE.md` for the full structure.
 
 ## Naming Conventions
 
