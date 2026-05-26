@@ -70,23 +70,12 @@ The first ten roles are the fleet hardening baseline applied by `playbooks/site-
 
 ```
 inventories/          Per-environment inventory (production, staging, development)
+                      with per-env group_vars/ and host_vars/
 playbooks/            Top-level playbooks
-roles/                Custom Ansible roles
-  common/             Base system management and hardening
-  users/              User management and access control
-  ntp/                Time synchronisation (chrony)
-  ssh_hardening/      SSH server hardening
-  ufw/                UFW firewall
-  fail2ban/           Intrusion prevention
-  aide/               File integrity monitoring
-  rkhunter/           Rootkit detection
-  log_forwarding/     Centralised log forwarding
-  auditd/             System audit logging
-group_vars/           Global group variables
-host_vars/            Global host-specific variables
-plugins/              Custom filter, module, and lookup plugins
-files/                Static files used by playbooks
-templates/            Jinja2 templates used by playbooks
+roles/                Custom Ansible roles (see Roles table above)
+group_vars/all.yml    Global group variables
+docs/                 Compliance controls catalog + ADRs
+scripts/              Local helper scripts (compliance-controls validator)
 ```
 
 ## Evidence and Audit
