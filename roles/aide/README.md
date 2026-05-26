@@ -1,4 +1,4 @@
-# AIDE Role
+# `aide` role
 
 File integrity monitoring via AIDE for Ubuntu 24.04 LTS.
 
@@ -6,12 +6,12 @@ File integrity monitoring via AIDE for Ubuntu 24.04 LTS.
 
 - Installs AIDE (Advanced Intrusion Detection Environment)
 - Deploys a hardened AIDE configuration monitoring critical directories
-- Initializes the AIDE database on first run
+- Initialises the AIDE database on first run
 - Schedules daily integrity checks via cron
-- Configures log rotation for AIDE reports
+- Rotates AIDE reports
 - Optionally emails reports on completion
 
-## Key Variables
+## Key variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -23,6 +23,6 @@ File integrity monitoring via AIDE for Ubuntu 24.04 LTS.
 | `aide_mailto` | `""` | Email recipient for reports |
 | `aide_monitored_dirs` | `/etc, /usr/bin, /usr/sbin, /usr/lib, /boot` | Directories to monitor |
 | `aide_excluded_dirs` | `/etc/mtab, /etc/adjtime, /etc/resolv.conf` | Paths to exclude |
-| `aide_init_db` | `true` | Initialize database on first run |
+| `aide_init_db` | `true` | Initialise database on first run |
 
-See `defaults/main.yml` for the full list.
+Full list in `defaults/main.yml`.

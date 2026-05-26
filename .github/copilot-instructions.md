@@ -1,66 +1,81 @@
-# Copilot Instructions for automation
+# Copilot Instructions — `automation`
 
-`automation` is the Ansible automation repository — fleet hardening, configuration management, and operator-host toolchain provisioning. Companion repositories: `infra` (OpenTofu) and `runbooks` (ad-hoc operator scripts).
+Ansible automation: fleet hardening, configuration management,
+operator-host toolchain. Companions: `infra` (OpenTofu), `runbooks`
+(ad-hoc operator scripts). Full conventions live in `CLAUDE.md`; this
+file is the short form.
 
-## Repository Layout
+## Repository layout
 
-Standard Ansible best-practices layout with `inventories/<env>/` (production, staging, development, each with their own `group_vars/` and `host_vars/`), `playbooks/`, `roles/`, and a global `group_vars/all.yml`. Files and templates live inside each role (`roles/<role>/files/`, `roles/<role>/templates/`) — there is no top-level `files/`, `templates/`, `host_vars/`, or `plugins/` directory. Plugin subdirectories should only be created on demand alongside the matching `ansible.cfg` plugin-path setting. See `CLAUDE.md` for the full structure.
+Standard Ansible best-practices layout with `inventories/<env>/`
+(production, staging, development, each with their own `group_vars/`
+and `host_vars/`), `playbooks/`, `roles/`, and a global
+`group_vars/all.yml`. Files and templates live inside each role
+(`roles/<role>/files/`, `roles/<role>/templates/`) — there is no
+top-level `files/`, `templates/`, `host_vars/`, or `plugins/`
+directory. Plugin subdirectories are created on demand alongside the
+matching `ansible.cfg` plugin-path setting. See `CLAUDE.md` for the
+full structure.
 
-## Naming Conventions
+## Naming
 
-- **Roles**: lowercase with underscores (`nginx_proxy`, `postgresql_server`)
-- **Playbooks**: lowercase with hyphens (`deploy-app.yml`, `setup-monitoring.yml`)
-- **Variables**: lowercase with underscores, prefixed by role name (`nginx_listen_port`, `postgres_max_connections`)
-- **Files/Templates**: lowercase with hyphens or underscores, matching the target filename
-- **Inventory groups**: lowercase with underscores (`web_servers`, `db_servers`)
-- **Tags**: lowercase with hyphens (`install-packages`, `configure-service`)
+- **Roles**: lowercase with underscores (`nginx_proxy`,
+  `postgresql_server`)
+- **Playbooks**: lowercase with hyphens (`deploy-app.yml`)
+- **Variables**: lowercase with underscores, prefixed by role name
+- **Files/Templates**: lowercase with hyphens or underscores
+- **Inventory groups**: lowercase with underscores (`web_servers`)
+- **Tags**: lowercase with hyphens (`install-packages`)
 
-## YAML Style
+## YAML style
 
-- Use `.yml` extension (not `.yaml`)
-- Use 2-space indentation
-- Always use `true`/`false` for booleans (not `yes`/`no`)
-- Quote strings that contain special YAML characters or could be misinterpreted
+- `.yml` extension (not `.yaml`)
+- 2-space indentation
+- `true`/`false` for booleans (never `yes`/`no`)
+- Quote strings containing special YAML characters
 - Start every YAML file with `---`
-- Use block style (`key: value`) over flow style (`{key: value}`)
+- Block style (`key: value`) over flow style
 
-## Ansible Best Practices
+## Ansible practice
 
-- Always name tasks descriptively (every `- name:` should explain what the task does)
-- Use fully qualified collection names (FQCNs) for modules (e.g., `ansible.builtin.copy` not just `copy`)
-- Prefer `ansible.builtin.template` over `ansible.builtin.copy` for config files that need variable substitution
-- Use `become: true` only when needed, not globally
-- Keep secrets in Ansible Vault encrypted files; never commit plaintext secrets
-- Use `ansible.builtin.import_tasks` for static includes and `ansible.builtin.include_tasks` for dynamic includes
-- Use handlers for service restarts/reloads triggered by configuration changes
-- Set `changed_when` and `failed_when` on shell/command tasks to ensure accurate reporting
-- Prefer idempotent operations in all Ansible tasks
+- Name every task descriptively
+- FQCNs for all modules (`ansible.builtin.copy`, not `copy`)
+- Prefer `ansible.builtin.template` over `ansible.builtin.copy` for
+  config files needing substitution
+- `become: true` only when needed, never globally
+- Secrets in `ansible-vault` encrypted files; never plaintext
+- `ansible.builtin.import_tasks` for static, `include_tasks` for dynamic
+- Handlers for service restart/reload from config changes
+- `changed_when` and `failed_when` on `shell`/`command` tasks
+- Prefer idempotent operations
 
-## Role Structure
+## Role structure
 
-Every role should include:
-- `defaults/main.yml` - Default variables (overridable)
-- `tasks/main.yml` - Main task list
-- `handlers/main.yml` - Handlers (if needed)
-- `meta/main.yml` - Role metadata and dependencies
-- `README.md` - Role documentation
+Every role:
 
-## Variable Precedence
+- `defaults/main.yml` — default variables (overridable)
+- `tasks/main.yml` — main task list
+- `handlers/main.yml` — handlers (if needed)
+- `meta/main.yml` — metadata and dependencies
+- `README.md` — role documentation
 
-1. `roles/<role>/defaults/main.yml` - Role defaults (lowest precedence)
-2. `group_vars/` - Group-specific overrides
-3. `host_vars/` - Host-specific overrides
-4. Playbook `vars:` - Playbook-level overrides (use sparingly)
+## Variable precedence
 
-## Secrets Management
+1. `roles/<role>/defaults/main.yml` (lowest)
+2. `inventories/<env>/group_vars/`
+3. `inventories/<env>/host_vars/`
+4. Playbook `vars:` (use sparingly)
 
-- Use `ansible-vault` for encrypting sensitive data
-- Store vault-encrypted files with a `vault_` prefix (e.g., `vault_secrets.yml`)
+## Secrets
+
+- `ansible-vault` for sensitive data
+- Vault files: `vault_` prefix
 - Never commit unencrypted secrets, passwords, API keys, or private keys
 - Reference vault variables with a `vault_` prefix in variable names
 
-## Quality Tools
+## Quality tools
 
-- **ansible-lint** for Ansible-specific linting
-- **yamllint** for YAML syntax and style checking
-- **molecule** for role testing
+- **ansible-lint** (production profile, FQCN + `no-changed-when`
+  enforced)
+- **yamllint** (project overrides in `.yamllint`)
+- **molecule** (role testing — placeholder; see LIMITATIONS L2)

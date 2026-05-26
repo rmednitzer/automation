@@ -1,22 +1,21 @@
 ## Description
 
-<!-- Describe the changes in this PR -->
+<!-- What does this PR change, and why? -->
 
-## Type of Change
+## Type of change
 
 - [ ] New role or playbook
-- [ ] Bug fix
 - [ ] Role improvement or refactor
+- [ ] Bug fix
 - [ ] Documentation update
-- [ ] Compliance change (`docs/compliance-controls.yml` or CTL- / POL-
+- [ ] Compliance change (`docs/compliance-controls.yml` or CTL-/POL-
       mapping)
 - [ ] CI / tooling change
 
 ## Checklist
 
-- [ ] I have followed the [naming conventions](/rmednitzer/automation/blob/main/CLAUDE.md) for this
-      project
-- [ ] All module references use fully qualified collection names (FQCNs)
+- [ ] Follows the [naming conventions](/rmednitzer/automation/blob/main/CLAUDE.md)
+- [ ] All module references use FQCNs
 - [ ] All tasks are named descriptively
 - [ ] `yamllint .` passes
 - [ ] `ansible-lint` passes (production profile)
@@ -26,16 +25,16 @@
       same change is reflected in `roles/<name>/README.md` (per
       [ADR-001](/rmednitzer/automation/blob/main/docs/ADR-001-code-validation-baseline.md))
 - [ ] If I added or renumbered a `CTL-*` or `POL-*` identifier,
-      `docs/compliance-controls.yml`, the relevant role headers, and the
-      README mapping table are all updated together
+      `docs/compliance-controls.yml`, the relevant role headers, and
+      the README mapping table are all updated together
 - [ ] `[Unreleased]` entry added to [`CHANGELOG.md`](/rmednitzer/automation/blob/main/CHANGELOG.md),
-      citing any CTL- / POL- IDs touched
-- [ ] No unencrypted secrets are included in this PR
+      citing any CTL-/POL- IDs touched
+- [ ] No unencrypted secrets included in this PR
 
 ## Testing
 
-<!-- Describe how you tested your changes -->
+<!-- How did you test the change? -->
 
-## Additional Notes
+## Additional notes
 
-<!-- Any other context about this PR -->
+<!-- Anything else worth knowing -->
