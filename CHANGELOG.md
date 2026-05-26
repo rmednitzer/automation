@@ -9,6 +9,15 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- Remove empty global `files/`, `templates/`, `host_vars/`, and
+  `plugins/{filter,lookup,modules}/` stub directories — these are not part
+  of the official Ansible best-practices layout (role-scoped `files/` /
+  `templates/` are; top-level ones are not), were never populated, and
+  would not be loaded without explicit `ansible.cfg` plugin paths. Per-env
+  `inventories/<env>/group_vars/` and `inventories/<env>/host_vars/` are
+  retained as documented extensibility points. `CLAUDE.md` and `README.md`
+  Repository Structure sections updated to match. No role, playbook, or
+  `docs/compliance-controls.yml` change; no CTL- / POL- IDs touched.
 - Sync governance docs (SECURITY policy shape, PR template structure,
   copilot instructions, README Companion repositories pointer) with the
   companion `runbooks` and `infra` repos. No role, playbook, or

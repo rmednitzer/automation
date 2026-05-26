@@ -25,50 +25,41 @@ When adding new controls, map them to the relevant regulatory articles and add d
 
 ## Repository Structure
 
-This repository follows the standard Ansible best-practices layout:
+This repository follows the standard Ansible best-practices layout. Files
+and templates used by a role live **inside** that role (`roles/<role>/files/`,
+`roles/<role>/templates/`), not at the repository root — per the official
+[sample setup](https://docs.ansible.com/ansible/latest/tips_tricks/sample_setup.html).
 
 ```
 automation/
-├── CLAUDE.md              # This file - AI assistant guide
-├── LICENSE                # Apache License 2.0
+├── CLAUDE.md              # AI assistant guide (this file)
 ├── README.md              # Project documentation
-├── .gitignore             # Git ignore rules
+├── LICENSE / NOTICE       # Apache License 2.0
 ├── ansible.cfg            # Ansible configuration
-├── requirements.yml       # Ansible Galaxy dependencies (roles/collections)
-├── inventories/           # Inventory files organized by environment
-│   ├── production/
-│   │   ├── hosts          # Production host definitions
-│   │   ├── group_vars/    # Production group variables
-│   │   └── host_vars/     # Production host-specific variables
-│   ├── staging/
-│   │   ├── hosts
-│   │   ├── group_vars/
-│   │   └── host_vars/
-│   └── development/
-│       ├── hosts
-│       ├── group_vars/
-│       └── host_vars/
-├── playbooks/             # Top-level playbooks
-├── roles/                 # Custom Ansible roles
-│   └── <role_name>/
-│       ├── tasks/
-│       ├── handlers/
-│       ├── templates/
-│       ├── files/
-│       ├── vars/
-│       ├── defaults/
-│       ├── meta/
-│       └── README.md
-├── group_vars/            # Global group variables
-│   └── all.yml
-├── host_vars/             # Global host-specific variables
-├── plugins/               # Custom plugins
-│   ├── filter/
-│   ├── modules/
-│   └── lookup/
-├── files/                 # Static files used by playbooks
-└── templates/             # Jinja2 templates used by playbooks
+├── requirements.yml       # Ansible Galaxy dependencies (collections)
+├── Makefile               # Local lint / syntax-check / validate-compliance
+├── inventories/<env>/     # production, staging, development
+│   ├── hosts              # Inventory definitions
+│   ├── group_vars/        # Per-env group variables
+│   └── host_vars/         # Per-env host-specific variables
+├── playbooks/             # Top-level playbooks (site-common, sre-toolchain)
+├── roles/<role>/          # Custom Ansible roles
+│   ├── defaults/main.yml  # Default variables (overridable)
+│   ├── tasks/main.yml     # Main task list
+│   ├── handlers/main.yml  # Handlers (if needed)
+│   ├── templates/         # Role-scoped Jinja2 templates
+│   ├── files/             # Role-scoped static files
+│   ├── meta/main.yml      # Role metadata (Galaxy info, dependencies)
+│   └── README.md          # Role documentation
+├── group_vars/all.yml     # Global group variables
+├── docs/                  # ADR-001, compliance-controls.yml
+└── scripts/               # validate-compliance-controls.py
 ```
+
+Add custom plugins under `plugins/{filter,lookup,modules}/` only when one
+is needed, and configure the corresponding plugin path in `ansible.cfg`
+(`filter_plugins`, `lookup_plugins`, `library`). Do not pre-create empty
+plugin directories.
 
 ## Current State
 
