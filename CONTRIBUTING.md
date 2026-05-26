@@ -1,10 +1,10 @@
-# Contributing to automation
+# Contributing to `automation`
 
-This repository defines the **configuration and hardening layer** for
-the fleet — what state each host should be in — managed by Ansible.
-Conventions live in [`CLAUDE.md`](./CLAUDE.md); compliance mappings in
+Configuration and hardening layer for the fleet — what state each host
+should be in — managed by Ansible. Conventions in
+[`CLAUDE.md`](./CLAUDE.md); compliance mappings in
 [`docs/compliance-controls.yml`](./docs/compliance-controls.yml). This
-file covers workflow only.
+file is workflow only.
 
 ## Branch naming
 
@@ -29,22 +29,22 @@ with failing CI.
 
 ## Pull request expectations
 
-1. Update [`CHANGELOG.md`](./CHANGELOG.md) under `[Unreleased]`, citing
-   any CTL- / POL- IDs touched.
-2. Pass `make check` locally.
-3. **Compliance change** (touching `docs/compliance-controls.yml`,
-   regulatory mappings, or which role covers a control): update
+1. `[Unreleased]` entry in [`CHANGELOG.md`](./CHANGELOG.md), citing any
+   CTL-/POL- IDs touched.
+2. `make check` passes locally.
+3. **Compliance change** — touching `docs/compliance-controls.yml`,
+   regulatory mappings, or which role covers a control: update
    `docs/compliance-controls.yml`, the affected role's `README.md`, and
    name the IDs in the changelog entry.
-4. **Decision that changes a convention** (drop a control, switch a
-   hardening source): add an ADR using the Michael Nygard template.
+4. **Decision that changes a convention** — drop a control, switch a
+   hardening source, etc.: add an ADR using the Michael Nygard template.
    [`docs/ADR-001-code-validation-baseline.md`](./docs/ADR-001-code-validation-baseline.md)
    is the reference shape.
 
 PR template:
 [`.github/PULL_REQUEST_TEMPLATE.md`](./.github/PULL_REQUEST_TEMPLATE.md).
-Suspected vulnerabilities: see
-[`.github/SECURITY.md`](./.github/SECURITY.md) — never open a public
+Suspected vulnerabilities — see
+[`.github/SECURITY.md`](./.github/SECURITY.md); never open a public
 issue.
 
 By contributing, you agree your contribution is licensed under

@@ -9,6 +9,22 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- Optimise and rewrite every `.md` file end-to-end for tighter prose,
+  consistent voice, and uniform structure across the three companion
+  repos: `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LIMITATIONS.md`,
+  `.github/SECURITY.md`, `.github/PULL_REQUEST_TEMPLATE.md`,
+  `.github/copilot-instructions.md`, `docs/ADR-001-code-validation-baseline.md`,
+  and all 11 `roles/<role>/README.md` files
+  (`common`, `users`, `ntp`, `ssh_hardening`, `ufw`, `fail2ban`,
+  `aide`, `rkhunter`, `log_forwarding`, `auditd`, `sre_toolchain`).
+  ADR Status / Deciders / Findings / Decisions shape preserved; all
+  factual content — defaults, variable descriptions, compliance
+  mappings, F1–F4 finding categorisation, accepted design tensions
+  F3.1–F3.6 — preserved verbatim. No role behaviour change, no
+  playbook change, no `docs/compliance-controls.yml` change. No
+  CTL-/POL- IDs touched. `make check` passes:
+  `0 failure(s), 0 warning(s)`; `OK: 3 control(s), 5 policy(ies);
+  roles cross-referenced against 11 role(s)`.
 - Remove empty global `files/`, `templates/`, `host_vars/`, and
   `plugins/{filter,lookup,modules}/` stub directories — these are not part
   of the official Ansible best-practices layout (role-scoped `files/` /

@@ -8,9 +8,9 @@ Security fixes apply to the current `main` branch only.
   repository
 - Insecure default values in role `defaults/main.yml` that would weaken
   the hardening baseline
-- Privilege-escalation defects in roles (unscoped `become`, untrusted
+- Privilege-escalation defects in roles — unscoped `become`, untrusted
   input to `shell` / `command`, missing `validate:` on security-critical
-  templates)
+  templates
 - Missing hardening in playbooks (SSH, firewall, auditd) that would
   cause `playbooks/site-common.yml` to leave a host less hardened than
   the documented baseline
@@ -19,23 +19,21 @@ Security fixes apply to the current `main` branch only.
 
 ## Reporting
 
-Use [GitHub private vulnerability reporting](https://github.com/rmednitzer/automation/security/advisories/new).
-Include the affected file path and line numbers, reproduction steps,
-and an impact assessment (including which CTL- / POL- ID is affected,
-if applicable).
+[GitHub private vulnerability reporting](https://github.com/rmednitzer/automation/security/advisories/new).
+Include the affected file path, line numbers, reproduction steps, and
+an impact assessment (with the affected CTL-/POL- ID, if applicable).
 
-We acknowledge within 5 business days and provide a remediation timeline
-within 14 days.
+Acknowledgement within 5 business days; remediation timeline within 14
+days.
 
 ## Best practices for contributors
 
 - Never commit unencrypted secrets, passwords, API keys, or private
   keys. Use `ansible-vault` for sensitive data.
-- Reference vault variables with a `vault_` prefix in variable names.
-- Use fully qualified collection names (FQCNs) for all module calls.
-- Set `become: true` only on tasks that need privilege; never set it
-  globally.
-- Set `changed_when` / `failed_when` on `shell` and `command` tasks so
+- Reference vault variables with a `vault_` prefix.
+- Use FQCNs for all module calls.
+- `become: true` only on tasks that need privilege; never globally.
+- `changed_when` / `failed_when` on `shell` and `command` tasks so
   reported state matches reality.
-- Use `validate:` on security-critical config templates (`sshd_config`,
+- `validate:` on security-critical config templates (`sshd_config`,
   sudoers) so a typo cannot leave a broken file in place.
