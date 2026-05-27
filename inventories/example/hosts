@@ -1,0 +1,18 @@
+---
+# Example inventory — fixture for `ansible-playbook --syntax-check` and
+# local smoke tests. Hostnames use RFC 6761 `.example.test` so they
+# cannot resolve to any real host.
+#
+# This inventory is NOT for deployment. Do not point production runs at
+# it. For real deployments, populate `inventories/production/hosts`,
+# `inventories/staging/hosts`, or `inventories/development/hosts`.
+
+all:
+  children:
+    fleet:
+      hosts:
+        host01.example.test:
+        host02.example.test:
+    operators:
+      hosts:
+        ops01.example.test:
