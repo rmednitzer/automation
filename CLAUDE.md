@@ -146,10 +146,57 @@ Prefer defining variables at these levels (lowest precedence to highest):
 
 ## Secrets management
 
-- `ansible-vault` for encrypting sensitive data
-- Vault-encrypted files: `vault_` prefix (e.g. `vault_secrets.yml`)
-- Never commit unencrypted secrets, passwords, API keys, or private keys
-- Reference vault variables with a `vault_` prefix in variable names
+Secrets live in `ansible-vault` encrypted files, never in plaintext.
+
+### File and variable naming
+
+- Vault-encrypted files use the `vault_` prefix:
+  `inventories/<env>/group_vars/vault.yml`,
+  `inventories/<env>/host_vars/<host>/vault.yml`.
+  `.gitignore` allows tracked files matching `vault_*.yml`; the prefix
+  signals "encrypted at rest" to reviewers and to file-scanning tools.
+- Variables inside vault files use a `vault_` prefix
+  (`vault_smtp_password`, `vault_sre_toolchain_github_token`). A
+  non-vault file in the same `group_vars/` references them by aliasing:
+  `smtp_password: "{{ vault_smtp_password }}"`. This keeps vault lookups
+  out of role logic and makes the dependency explicit.
+
+### Vault password source
+
+Pick one of the three canonical sources, in order of preference:
+
+1. **File pointed to by `ANSIBLE_VAULT_PASSWORD_FILE`** (operator
+   workstation, CI). The file lives outside the repository, mode `0600`.
+2. **`--vault-password-file <path>` on the CLI** for one-off runs.
+3. **`vault_password_file = <path>` in `ansible.cfg`** only when the
+   path is non-sensitive (for example, a developer-only shared file in a
+   pair-programming context).
+
+`ansible-vault` also supports `--ask-vault-pass` for interactive use; do
+not script it.
+
+### Worked example
+
+See
+[`inventories/development/group_vars/vault.yml.example`](../inventories/development/group_vars/vault.yml.example)
+for the placeholder structure. Copy it to
+`inventories/<env>/group_vars/vault.yml`, fill in real values, then
+encrypt:
+
+```bash
+ansible-vault encrypt inventories/<env>/group_vars/vault.yml
+```
+
+Subsequent edits use `ansible-vault edit <path>`, which decrypts in a
+temp buffer and re-encrypts on save.
+
+### Hard rules
+
+- Never commit unencrypted secrets, passwords, API keys, or private keys.
+- Never commit the vault password file itself.
+- Vault variables are referenced through `vault_`-prefixed names so a
+  reviewer scanning a diff for plaintext credentials can trust the
+  convention.
 
 ## Common commands
 

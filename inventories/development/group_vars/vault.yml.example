@@ -1,0 +1,37 @@
+---
+# Example vault file for the development environment.
+#
+# DO NOT FILL THIS FILE IN. Copy it to vault.yml in the same directory,
+# fill in real values, then encrypt:
+#
+#   cp inventories/development/group_vars/vault.yml.example \
+#      inventories/development/group_vars/vault.yml
+#   ansible-vault encrypt inventories/development/group_vars/vault.yml
+#
+# See CLAUDE.md "Secrets management" for the vault password source
+# convention and the variable-aliasing pattern that keeps vault lookups
+# out of role logic.
+#
+# Variables in this file use the vault_ prefix. Non-vault files in the
+# same group_vars/ alias them by name, for example:
+#
+#   # inventories/development/group_vars/all.yml
+#   smtp_password: "{{ vault_smtp_password }}"
+#   sre_toolchain_github_token: "{{ vault_sre_toolchain_github_token }}"
+
+# GitHub API token for sre_toolchain role.
+# Unauthenticated GitHub releases are rate-limited to 60 req/hour per IP.
+# See roles/sre_toolchain/defaults/main.yml for context.
+vault_sre_toolchain_github_token: "REPLACE_ME_GITHUB_PERSONAL_ACCESS_TOKEN"
+
+# SMTP credentials for AIDE / rkhunter / log_forwarding mail reports.
+vault_smtp_user: "REPLACE_ME_SMTP_USER"
+vault_smtp_password: "REPLACE_ME_SMTP_PASSWORD"
+
+# Recipient for security alert mail. Not a secret per se, but kept in
+# vault so a deployment change does not leak the operator address.
+vault_alert_recipient: "REPLACE_ME_alerts@example.test"
+
+# Central log forwarding endpoint. Hostname is operationally sensitive
+# (target inference, attack surface) so kept vault-side.
+vault_log_forwarding_server: "REPLACE_ME_siem.example.test"
