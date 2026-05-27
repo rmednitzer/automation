@@ -12,7 +12,7 @@ help:  ## Show this help.
 
 install:  ## Install runtime + lint dependencies and Galaxy collections.
 	python -m pip install --upgrade pip
-	pip install ansible-core ansible-lint yamllint pre-commit pyyaml
+	pip install -r requirements-dev.txt
 	ansible-galaxy install -r requirements.yml
 
 lint:  ## Run yamllint + ansible-lint (production profile).
