@@ -9,6 +9,37 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- Governance and tooling additions from the 2026-05-27 assurance
+  engagement; no role behaviour change, no `docs/compliance-controls.yml`
+  change, no CTL- / POL- IDs touched.
+  - Root `CODE_OF_CONDUCT.md` adopting Contributor Covenant v2.1
+    by reference (session finding B9).
+  - Root `SECURITY.md` stub pointing at `.github/SECURITY.md` so
+    external scanners that look at the repository root
+    (OpenSSF Scorecard, supply-chain tools) find the security policy
+    (B5).
+  - `docs/policies/README.md`, `docs/controls/README.md`,
+    `docs/evidence/README.md` navigation indexes for the POL- / CTL- /
+    evidence views; `docs/compliance-controls.yml` remains canonical
+    and is not duplicated (B4).
+  - `CLAUDE.md` "Secrets management" section expanded with the vault
+    password source convention (`ANSIBLE_VAULT_PASSWORD_FILE` preferred)
+    and the `vault_` variable-aliasing pattern; new
+    `inventories/development/group_vars/vault.yml.example` placeholder
+    file (`LIMITATIONS.md` L4 and session finding B8).
+  - `inventories/example/hosts` smoke-test fixture using RFC 6761
+    `.example.test` hostnames; both playbooks now syntax-check without
+    the "provided hosts list is empty" warning when targeted with
+    `-i inventories/example/hosts` (`docs/ADR-001` F4.5).
+  - `gitleaks` v8.30.1 pre-commit hook complementing the existing
+    `detect-private-key` hook (B6).
+  - `.github/ISSUE_TEMPLATE/bug_report.yml` `ansible-version`
+    placeholder refreshed from `2.15` to `2.19` (B7).
+  `make check` baseline: yamllint clean; ansible-lint production
+  profile `0 failure(s), 0 warning(s) in 102 files processed of 142
+  encountered`; `OK: 3 control(s), 5 policy(ies); roles
+  cross-referenced against 11 role(s)`. Both playbooks syntax-check
+  against `inventories/example/hosts` without warnings.
 - Optimise and rewrite every `.md` file end-to-end for tighter prose,
   consistent voice, and uniform structure across the three companion
   repos: `README.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LIMITATIONS.md`,
