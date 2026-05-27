@@ -9,6 +9,27 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- CI supply-chain posture from the 2026-05-27 assurance engagement
+  (Batch D); no role behaviour change, no
+  `docs/compliance-controls.yml` change, no CTL- / POL- IDs touched.
+  - `requirements-dev.txt` pins Python toolchain versions
+    (`ansible-core`, `ansible-lint`, `yamllint`, `pre-commit`,
+    `PyYAML`); all CI jobs and `make install` install from this single
+    source. `.github/dependabot.yml` adds a `pip` ecosystem alongside
+    the existing `github-actions` ecosystem so toolchain bumps are
+    auto-tracked weekly (session finding B1).
+  - `.github/workflows/ci.yml` pins all GitHub Actions to commit SHAs
+    with `# vX.Y.Z` comments per OpenSSF Scorecard
+    Pinned-Dependencies and SLSA v1.2 Source Track guidance.
+    Dependabot reads the comment to identify newer commits
+    (session finding B2).
+  - `requirements.yml` pins Galaxy collections (`ansible.posix==2.2.0`,
+    `community.general==13.0.1`) to exact versions instead of `>=`
+    ranges. New `scripts/galaxy-sbom.py` reads
+    `collections/ansible_collections/<ns>/<name>/MANIFEST.json` and
+    emits a CycloneDX 1.6 SBOM; new `collections-sbom` CI job uploads
+    the artifact with 90-day retention (`docs/ADR-001` F4.2). Scanning
+    against a vulnerability feed deferred until tooling stabilises.
 - Governance and tooling additions from the 2026-05-27 assurance
   engagement; no role behaviour change, no `docs/compliance-controls.yml`
   change, no CTL- / POL- IDs touched.
