@@ -1,0 +1,105 @@
+---
+# AppArmor (MAC / LSM): ensure installed + active, audit profile coverage, and
+# optionally move opted-in profiles to complain/enforce mode. POL-001.
+
+- name: Configure AppArmor (MAC)
+  when: apparmor_enabled | bool
+  block:
+    # Only a container GUEST skips runtime management (the host kernel owns the
+    # AppArmor policy there and apparmorfs is not writable); a container/LXC
+    # *host* is managed normally. Packages are installed regardless.
+    - name: Determine whether to manage the AppArmor runtime
+      ansible.builtin.set_fact:
+        apparmor_runtime_managed: >-
+          {{ apparmor_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Install AppArmor packages
+      ansible.builtin.apt:
+        name: "{{ apparmor_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+
+    - name: Install the distribution AppArmor profile sets
+      ansible.builtin.apt:
+        name:
+          - apparmor-profiles
+          - apparmor-profiles-extra
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+      when: apparmor_install_extra_profiles | bool
+
+    - name: Enable and start AppArmor
+      ansible.builtin.systemd_service:
+        name: apparmor
+        enabled: true
+        state: started
+      become: true
+      when: apparmor_runtime_managed | bool
+
+    # aa-status --json exits non-zero when AppArmor is disabled/unavailable;
+    # failed_when:false keeps the run going and the parse step is guarded on rc.
+    - name: Read the current AppArmor profile status
+      ansible.builtin.command:
+        cmd: aa-status --json
+      register: apparmor_status_raw
+      changed_when: false
+      failed_when: false
+      become: true
+      when: apparmor_runtime_managed | bool
+
+    - name: Parse the AppArmor profile modes
+      ansible.builtin.set_fact:
+        apparmor_profile_modes: "{{ (apparmor_status_raw.stdout | from_json).profiles | default({}) }}"
+      when:
+        - apparmor_runtime_managed | bool
+        - apparmor_status_raw.rc | default(1) == 0
+        - apparmor_status_raw.stdout | default('') | length > 0
+
+    # Idempotent: only act on profiles that are loaded and not already in the
+    # target mode. A profile name that is absent from aa-status (typo / not
+    # loaded) is skipped rather than erroring.
+    - name: Set opted-in profiles to complain mode
+      ansible.builtin.command:
+        cmd: "aa-complain {{ item }}"
+      loop: "{{ apparmor_complain_profiles }}"
+      loop_control:
+        label: "{{ item }}"
+      become: true
+      changed_when: true
+      when:
+        - apparmor_runtime_managed | bool
+        - apparmor_profile_modes is defined
+        - item in apparmor_profile_modes
+        - apparmor_profile_modes[item] != 'complain'
+
+    - name: Set opted-in profiles to enforce mode
+      ansible.builtin.command:
+        cmd: "aa-enforce {{ item }}"
+      loop: "{{ apparmor_enforce_profiles }}"
+      loop_control:
+        label: "{{ item }}"
+      become: true
+      changed_when: true
+      when:
+        - apparmor_runtime_managed | bool
+        - apparmor_profile_modes is defined
+        - item in apparmor_profile_modes
+        - apparmor_profile_modes[item] != 'enforce'
+
+    - name: Report the AppArmor profile-mode summary (with -v)
+      ansible.builtin.debug:
+        msg: >-
+          AppArmor: {{ apparmor_profile_modes | dict2items | selectattr('value', 'eq', 'enforce') | list | length }} enforce,
+          {{ apparmor_profile_modes | dict2items | selectattr('value', 'eq', 'complain') | list | length }} complain
+          ({{ apparmor_profile_modes | length }} profiles loaded).
+        verbosity: 1
+      when:
+        - apparmor_audit | bool
+        - apparmor_runtime_managed | bool
+        - apparmor_profile_modes is defined

@@ -1,0 +1,23 @@
+---
+galaxy_info:
+  role_name: apparmor
+  author: automation
+  description: >-
+    AppArmor (Mandatory Access Control / LSM) enablement, profile-coverage
+    audit, and opt-in profile enforcement for Ubuntu 24.04 and 26.04 LTS
+  license: Apache-2.0
+  min_ansible_version: "2.18"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble      # 24.04 LTS
+        - resolute   # 26.04 LTS (kernel 7.0) — see docs/ADR-004
+  galaxy_tags:
+    - apparmor
+    - mac
+    - lsm
+    - hardening
+    - security
+    - ubuntu
+
+dependencies: []

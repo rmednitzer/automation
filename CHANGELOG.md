@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `apparmor` role — Mandatory Access Control / LSM (POL-001).**
+  First of the defense-in-depth series. Ensures AppArmor (Ubuntu's default MAC)
+  is installed (`apparmor` + `apparmor-utils`, plus the `apparmor-profiles` /
+  `-profiles-extra` sets) and the service is active, **audits** profile
+  coverage by parsing `aa-status --json` (enforce/complain/loaded counts), and
+  **opt-in** moves named profiles into complain/enforce mode idempotently (only
+  loaded profiles not already in the target mode are touched). Safe-by-default:
+  `apparmor_enforce_profiles` / `_complain_profiles` are empty, so a baseline
+  run only enables + audits and never flips a profile (which could break the
+  confined program). Container-guest aware (`apparmor_runtime_managed`). Added
+  to `site-common.yml` after `common` and mapped to POL-001 in
+  `docs/compliance-controls.yml` (MAC = program-level information access
+  restriction). CRA Annex I Part I, NIS2 Art 21.2(e), GDPR Art 25 / Art 5(1)(f),
+  ISO 27001:2022 A.8.3 / A.5.15.
+
 - 2026-05-30 **New `systemd_hardening` role — per-service sandboxing + audit
   (POL-004).** Confines services with systemd unit drop-ins
   (`/etc/systemd/system/<unit>.d/10-hardening.conf`) built from two vetted

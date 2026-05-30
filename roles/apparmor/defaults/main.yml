@@ -1,0 +1,54 @@
+---
+# AppArmor (Mandatory Access Control / LSM) role defaults.
+#
+# Compliance references:
+#   - POL-001 — access control policy: AppArmor is Mandatory Access Control.
+#     It confines each program to an explicit allow-list of files,
+#     capabilities and network operations, enforcing information access
+#     restriction at the kernel (LSM) boundary — the program-level complement
+#     to the user-level access controls (SSH/sudo/lockout) in POL-001.
+#   - CRA (EU 2024/2847) Annex I Part I — minimise attack surface / contain a
+#     compromised service.
+#   - NIS2 Art 21.2(e) — security in network and information systems.
+#   - GDPR Art 25 — data protection by design; Art 5(1)(f) — integrity and
+#     confidentiality of processing.
+#   - ISO 27001:2022 A.8.3 — information access restriction; A.5.15 — access
+#     control.
+#
+# Targets Ubuntu 24.04 (AppArmor 4.0) and 26.04 LTS. See docs/ADR-004.
+
+# Master switch. Safe-by-default: the role ensures AppArmor is installed and
+# active and AUDITS profile coverage, but does NOT change any profile's
+# enforcement mode unless you list it below (flipping a profile to enforce can
+# break the confined program). A baseline run therefore only enables + audits.
+apparmor_enabled: true
+
+# Manage the AppArmor runtime (service enable/start, profile-mode changes,
+# audit). Auto-off in container GUESTS: AppArmor policy is loaded by the host
+# kernel and a guest cannot manage profiles or read apparmorfs. Packages are
+# still installed (config-as-code). A container/LXC *host* is managed normally —
+# same ansible_virtualization_role == 'guest' check as auditd / dns.
+apparmor_manage_runtime: true
+
+# --- Packages -----------------------------------------------------------------
+# Core LSM userspace + the utilities (aa-status, aa-enforce, aa-complain).
+apparmor_packages:
+  - apparmor
+  - apparmor-utils
+# Distribution profile sets (apparmor-profiles / -profiles-extra, from universe)
+# add vetted profiles for many common programs. Enabled by default.
+apparmor_install_extra_profiles: true
+
+# --- Profile enforcement (OPT-IN) ---------------------------------------------
+# EMPTY by default. List the EXACT profile names as `aa-status` reports them
+# (often a binary path, e.g. "/usr/sbin/tcpdump", sometimes a short name, e.g.
+# "man"). The role only acts on profiles that are actually loaded and not
+# already in the requested mode, so it is idempotent. Move a profile to
+# complain mode first (log-only) to triage denials, then to enforce once clean.
+apparmor_complain_profiles: []
+apparmor_enforce_profiles: []
+
+# --- Audit (read-only) --------------------------------------------------------
+# Parse `aa-status --json` and report the enforce / complain / unconfined
+# counts. Read-only; feeds the AI-assisted hardening review (AI-native series).
+apparmor_audit: true
