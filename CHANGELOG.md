@@ -13,6 +13,14 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
   sysctl / vault / molecule work. No CTL-/POL- catalog membership changed
   (CTL-002, CTL-003, POL-004 cross-references touched in `common` /
   `sre_toolchain`).
+  - **Molecule matrix is now on-demand (`workflow_dispatch`):** the
+    `molecule` job runs systemd-in-Docker and exercises steps that are not
+    container-safe (auditd rule loading, sshd restart, read-only sysctls), so
+    it was never green and only added a perpetual red to PR CI. Gated it on
+    `github.event_name == 'workflow_dispatch'` (removed `continue-on-error`),
+    so push/PR CI no longer runs it; trigger it manually against a Docker host
+    where converge is the real gate. Closure path (LIMITATIONS L2): add
+    container-awareness to the affected roles, then re-enable on push/PR.
   - **`common` sysctl absence-robustness (Codex):** moved the absent-prone
     KSPP knobs `net.core.bpf_jit_harden` and `vm.unprivileged_userfaultfd`
     out of the unconditional `common_sysctl_settings` into the path-gated
