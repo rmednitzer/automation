@@ -1,0 +1,75 @@
+---
+# DNS resolver hardening via systemd-resolved (Ubuntu 24.04/26.04 LTS).
+# POL-003 (DoT/DNSSEC), NIS2 Art 21.2(e), CRA Annex I, GDPR Art 32.
+
+# Only a container GUEST skips runtime management: there systemd-resolved is
+# usually not the resolver and restarting it / repointing resolv.conf can
+# fail. A container/LXC *host* (type 'lxc', role 'host') runs its own resolver
+# and must still be managed — hence the virtualization_role check (mirrors the
+# auditd role). The drop-in is deployed regardless (config-as-code).
+- name: Determine whether to manage the systemd-resolved runtime
+  ansible.builtin.set_fact:
+    dns_runtime_managed: >-
+      {{ dns_manage_service | bool
+         and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                  and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+- name: Validate DNSSEC and DNS-over-TLS modes
+  ansible.builtin.assert:
+    that:
+      - dns_dnssec in ['yes', 'no', 'allow-downgrade']
+      - dns_over_tls in ['yes', 'no', 'opportunistic']
+    fail_msg: >-
+      dns_dnssec must be one of yes|no|allow-downgrade and dns_over_tls one of
+      yes|no|opportunistic (resolved.conf values).
+    quiet: true
+
+- name: Ensure systemd-resolved is installed
+  ansible.builtin.apt:
+    name: systemd-resolved
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Ensure the resolved.conf.d drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Deploy the systemd-resolved hardening drop-in
+  ansible.builtin.template:
+    src: resolved.conf.j2
+    dest: /etc/systemd/resolved.conf.d/90-ansible.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart systemd-resolved
+
+- name: Point /etc/resolv.conf at the systemd-resolved stub
+  ansible.builtin.file:
+    src: /run/systemd/resolve/stub-resolv.conf
+    dest: /etc/resolv.conf
+    state: link
+    force: true
+  become: true
+  # Only when managing the runtime (the stub at 127.0.0.53 must actually be
+  # running) and only if asked — some environments manage resolv.conf
+  # externally.
+  when:
+    - dns_runtime_managed
+    - dns_manage_resolv_conf | bool
+  notify: Restart systemd-resolved
+
+- name: Enable and start systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    enabled: true
+    state: started
+  become: true
+  when: dns_runtime_managed

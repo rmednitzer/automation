@@ -148,6 +148,7 @@ policies:
       - ntp
       - log_forwarding
       - aide
+      - dns
 
   POL-004:
     title: "Data classification and handling policy"
