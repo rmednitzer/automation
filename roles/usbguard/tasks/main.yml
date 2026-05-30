@@ -59,6 +59,23 @@
       become: true
       when: usbguard_runtime_managed | bool
 
+    # Record that THIS role installed usbguard (the package was absent before
+    # this run). package_facts was gathered pre-install, so this fires only on
+    # the installing run. It marks rules.conf as a package/role artifact (not
+    # operator-curated), so first enforce regenerates rather than adopts it.
+    - name: Record that this role installed USBGuard
+      ansible.builtin.copy:
+        content: ""
+        dest: "{{ usbguard_install_marker }}"
+        force: false
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - "'usbguard' not in ansible_facts.packages"
+
     # --- Audit (read-only) ----------------------------------------------------
     # generate-policy reads sysfs (no daemon needed): one "allow" line per
     # currently-connected device, so the count is the present USB attack surface.
@@ -115,9 +132,12 @@
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
 
-    # Determine whether a rule set already exists, so we never overwrite an
-    # operator-curated policy (deliberate blocks / fleet rules) that predates
-    # this role being adopted on the host.
+    # Decide between seeding fresh rules and adopting an existing operator
+    # policy. Stat both rules.conf and the role install marker: a rule set is
+    # "operator-curated" (adopt as-is) only when it is non-empty AND the role
+    # did NOT install usbguard. If the role installed usbguard, rules.conf is a
+    # package/role artifact and is regenerated from the live devices at first
+    # enforce — even if the package left it non-empty during an audit-only run.
     - name: Stat the existing USBGuard rule set
       ansible.builtin.stat:
         path: "{{ usbguard_rules_file }}"
@@ -127,11 +147,20 @@
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
 
-    # Seed the allow-list from the devices connected RIGHT NOW (incl. the
-    # console keyboard/mouse) ONLY when there is no existing rule set (the file
-    # is absent or empty). Keyed on a role-owned sentinel — not rules.conf,
-    # which the package's postinst creates at install — so this is one-time.
-    - name: Seed the USBGuard rule set from currently-connected devices (first enforce, no existing policy)
+    - name: Stat the role install marker
+      ansible.builtin.stat:
+        path: "{{ usbguard_install_marker }}"
+      register: usbguard_install_marker_stat
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    # Seed from the devices connected RIGHT NOW (incl. the console keyboard/
+    # mouse) on first enforce when the rules are NOT an operator policy — i.e.
+    # the role installed usbguard, or rules.conf is absent/empty. Keyed on the
+    # role sentinel so it is one-time; the rule set is operator-managed after.
+    - name: Seed the USBGuard rule set from currently-connected devices (first enforce)
       ansible.builtin.shell:
         cmd: "usbguard generate-policy > {{ usbguard_rules_file }} && touch {{ usbguard_bootstrap_sentinel }}"
         creates: "{{ usbguard_bootstrap_sentinel }}"
@@ -140,12 +169,14 @@
       when:
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
-        - not (usbguard_rules_stat.stat.exists | default(false)) or (usbguard_rules_stat.stat.size | default(0)) == 0
+        - (usbguard_install_marker_stat.stat.exists | default(false))
+          or not (usbguard_rules_stat.stat.exists | default(false))
+          or (usbguard_rules_stat.stat.size | default(0)) == 0
 
-    # An existing non-empty rule set is adopted as-is (never regenerated): just
-    # mark the sentinel so later runs skip the seed. force:false keeps it
-    # idempotent and never truncates the existing operator policy.
-    - name: Adopt an existing USBGuard rule set without overwriting it (first enforce)
+    # Adopt a pre-existing operator policy as-is (role did NOT install usbguard
+    # and rules.conf is non-empty): just mark the sentinel, never overwrite.
+    # force:false keeps it idempotent and never truncates the existing file.
+    - name: Adopt an existing operator USBGuard rule set without overwriting it (first enforce)
       ansible.builtin.copy:
         content: ""
         dest: "{{ usbguard_bootstrap_sentinel }}"
@@ -157,6 +188,7 @@
       when:
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
+        - not (usbguard_install_marker_stat.stat.exists | default(false))
         - usbguard_rules_stat.stat.exists | default(false)
         - (usbguard_rules_stat.stat.size | default(0)) > 0
 
@@ -205,6 +237,18 @@
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
         - usbguard_disable_dbus | bool
+
+    # Symmetric path: if an operator later sets usbguard_disable_dbus=false to
+    # allow the D-Bus interface (e.g. a desktop applet), undo a prior mask.
+    - name: Unmask the usbguard-dbus service when the D-Bus interface is allowed
+      ansible.builtin.systemd_service:
+        name: usbguard-dbus
+        masked: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+        - not (usbguard_disable_dbus | bool)
 
     - name: Deploy the USBGuard daemon configuration
       ansible.builtin.template:

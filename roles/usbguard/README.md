@@ -34,13 +34,15 @@ console keyboard/mouse), so the role is conservative:
   never blacks out the USB controllers. Only **newly inserted** devices are
   evaluated against the allow-list (`InsertedDevicePolicy=apply-policy`,
   `ImplicitPolicyTarget=block`) — that is where the protection is.
-- **The allow-list is seeded from the live machine at first enforce — and an
-  existing policy is preserved.** Keyed on a role-owned sentinel
-  (`/etc/usbguard/.ansible-rules-bootstrapped`). If `rules.conf` is absent or
-  empty, it is generated from the devices connected *when you enable
-  enforcement* (so the console input devices are allow-listed); if it already
-  holds an operator-curated policy, that policy is **adopted as-is, never
-  overwritten**. The rule file is operator-managed thereafter.
+- **The allow-list is seeded from the live machine at first enforce — and a
+  pre-existing operator policy is preserved.** Keyed on a role-owned sentinel.
+  At first enforce the rules are **regenerated from the devices connected then**
+  (so the console input devices are allow-listed) — including when the package
+  left a stale `rules.conf` from an earlier audit-only install (tracked by a
+  role install marker). A `rules.conf` that **predates the role** (the role did
+  not install usbguard and the file is non-empty) is treated as operator-curated
+  and **adopted as-is, never overwritten**. The rule file is operator-managed
+  thereafter.
 - **IPC and D-Bus are root-only.** The package grants the `plugdev` group device
   authorisation two ways: an `IPCAccessControl.d/:plugdev` ACL (group ACL files
   take a leading colon) and polkit rules over the `usbguard-dbus` service. When
