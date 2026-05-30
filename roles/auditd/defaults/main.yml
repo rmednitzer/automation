@@ -55,11 +55,12 @@ auditd_immutable: true
 # Manage the running auditd DAEMON (start/enable it, load rules via
 # augenrules, reload auditd.conf). The auditd.conf + rules files are ALWAYS
 # deployed (config-as-code) regardless of this flag; it only governs the
-# runtime steps. Auto-disabled inside containers: the Linux audit subsystem is
-# host-global and not namespaced, so in a container auditd cannot start and
-# auditctl/augenrules fail (EPERM) — the runtime steps would abort the play.
-# Skipping them lets the role converge in containerised CI (Molecule) and
-# verify the deployed config, without weakening real hosts (where
-# ansible_virtualization_type is never a container type, so the daemon is
-# managed normally). Set false to force config-only even on a real host.
+# runtime steps. Auto-disabled inside a container GUEST: the Linux audit
+# subsystem is host-global and not namespaced, so in a container auditd cannot
+# start and auditctl/augenrules fail (EPERM) — the runtime steps would abort
+# the play. Skipping them lets the role converge in containerised CI (Molecule)
+# and verify the deployed config, without weakening real hosts. The guest check
+# is deliberate: a container/LXC *host* reports type 'lxc' with role 'host' and
+# owns the real audit subsystem, so it is still managed (see tasks/main.yml).
+# Set false to force config-only even on a real host.
 auditd_manage_runtime: true
