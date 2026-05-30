@@ -7,8 +7,16 @@
     state: restarted
   become: true
 
-- name: Restart auditd
-  ansible.builtin.systemd_service:
-    name: auditd
-    state: restarted
+# auditd.service ships RefuseManualStop=yes, so `systemctl restart auditd`
+# is refused. The audisp-remote plugin (au-remote.conf) and its destination
+# (audisp-remote.conf) are re-read by auditd on restart; use the SysV init
+# path (permitted where systemctl is refused) rather than systemd. This
+# matches roles/auditd "Reload auditd configuration".
+# Refs: auditd(8), audisp-remote(8), auditd.conf(5) — "RefuseManualStop".
+- name: Reload auditd configuration
+  ansible.builtin.command:  # noqa: command-instead-of-module
+    cmd: service auditd restart
+  register: log_forwarding_auditd_reload
+  changed_when: log_forwarding_auditd_reload.rc == 0
+  failed_when: log_forwarding_auditd_reload.rc != 0
   become: true

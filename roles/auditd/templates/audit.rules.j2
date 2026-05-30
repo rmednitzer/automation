@@ -85,9 +85,15 @@
 -a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
 -a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=1000 -F auid!=4294967295 -k delete
 
+# Command execution auditing (CIS — full execve accounting for forensics)
+-a always,exit -F arch=b64 -S execve -k exec
+-a always,exit -F arch=b32 -S execve -k exec
+
 # Audit configuration changes
 -w /etc/audit/ -p wa -k auditconfig
--w /etc/audisp/ -p wa -k auditconfig
+# Ubuntu 24.04 moved audisp plugin config to /etc/audit/plugins.d/ — the
+# legacy /etc/audisp/ path no longer exists, so watch the current location.
+-w /etc/audit/plugins.d/ -p wa -k auditconfig
 {% endif %}
 
 {% if auditd_compliance_rules %}

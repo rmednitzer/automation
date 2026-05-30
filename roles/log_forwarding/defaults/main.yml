@@ -29,6 +29,15 @@ log_forwarding_tls_enabled: false
 log_forwarding_tls_ca_cert: ""
 log_forwarding_tls_cert: ""
 log_forwarding_tls_key: ""
+# Permitted peer(s) for x509/name server-certificate authentication
+# (POL-003). When set, the client only accepts a server whose certificate
+# subject/SAN matches this value (a name, a wildcard like "*.example.com",
+# or a comma-separated list). When left empty, the template falls back to
+# the weaker x509/certvalid auth mode (any cert chaining to the configured
+# CA is accepted) so TLS does not silently break — set this to pin the
+# server identity. Refs: rsyslog $ActionSendStreamDriverAuthMode /
+# $ActionSendStreamDriverPermittedPeer.
+log_forwarding_tls_permitted_peer: ""
 
 # Forward audit logs specifically (auditd → remote via audisp-remote)
 log_forwarding_audit: true
