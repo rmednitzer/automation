@@ -1,0 +1,104 @@
+---
+# Kernel lockdown LSM: audit the current level and (opt-in) set it via the GRUB
+# kernel command line. POL-004 (kernel integrity & confidentiality).
+
+- name: Configure kernel lockdown
+  when: kernel_lockdown_enabled | bool
+  block:
+    # Lockdown is a host-kernel property: a container GUEST has no bootloader
+    # and shares the host's /sys/kernel/security, so it skips management
+    # entirely. A container/LXC *host* is managed normally.
+    - name: Determine whether to manage the kernel lockdown runtime
+      ansible.builtin.set_fact:
+        kernel_lockdown_runtime_managed: >-
+          {{ kernel_lockdown_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Validate the requested lockdown level
+      ansible.builtin.assert:
+        that:
+          - kernel_lockdown_level in ['', 'integrity', 'confidentiality']
+        fail_msg: >-
+          kernel_lockdown_level must be '' (audit only), 'integrity', or
+          'confidentiality'; got '{{ kernel_lockdown_level }}'.
+        quiet: true
+
+    # --- Audit (read-only) ----------------------------------------------------
+    - name: Check whether the kernel lockdown LSM is present
+      ansible.builtin.stat:
+        path: /sys/kernel/security/lockdown
+      register: kernel_lockdown_sysfs
+      become: true
+      when: kernel_lockdown_runtime_managed | bool
+
+    - name: Read the current kernel lockdown level
+      ansible.builtin.command:
+        cmd: cat /sys/kernel/security/lockdown
+      register: kernel_lockdown_current_raw
+      changed_when: false
+      become: true
+      when:
+        - kernel_lockdown_runtime_managed | bool
+        - kernel_lockdown_sysfs.stat.exists | default(false)
+
+    # /sys/kernel/security/lockdown shows the level list with the active one in
+    # brackets, e.g. "[none] integrity confidentiality".
+    - name: Report the kernel lockdown state (with -v)
+      ansible.builtin.debug:
+        msg: >-
+          Kernel lockdown current: {{ kernel_lockdown_current_raw.stdout | default('unknown') }}
+          | desired: {{ kernel_lockdown_level | default('(audit only)', true) }}
+          {{ '(reboot required to apply)' if (kernel_lockdown_level | length > 0
+             and ('[' + kernel_lockdown_level + ']') not in (kernel_lockdown_current_raw.stdout | default(''))) else '' }}
+        verbosity: 1
+      when:
+        - kernel_lockdown_audit | bool
+        - kernel_lockdown_runtime_managed | bool
+        - kernel_lockdown_sysfs.stat.exists | default(false)
+
+    # --- Opt-in: set the level via the GRUB kernel command line ---------------
+    - name: Ensure the GRUB drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ kernel_lockdown_grub_dropin | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+      when:
+        - kernel_lockdown_runtime_managed | bool
+        - kernel_lockdown_level | length > 0
+
+    - name: Deploy the kernel lockdown GRUB drop-in
+      ansible.builtin.template:
+        src: grub-lockdown.cfg.j2
+        dest: "{{ kernel_lockdown_grub_dropin }}"
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      when:
+        - kernel_lockdown_runtime_managed | bool
+        - kernel_lockdown_level | length > 0
+      notify:
+        - Regenerate grub configuration
+        - Kernel lockdown reboot required
+
+    # Optional teardown: when the level is cleared back to "" AND removal is
+    # explicitly opted in, remove this role's drop-in. OFF by default so an
+    # audit-only run stays READ-ONLY and never deletes a 99-lockdown.cfg that
+    # manual hardening / earlier automation may own. Lowering lockdown still
+    # needs a reboot (one-way at runtime), so this also flags reboot-required.
+    - name: Remove the kernel lockdown GRUB drop-in when auditing only
+      ansible.builtin.file:
+        path: "{{ kernel_lockdown_grub_dropin }}"
+        state: absent
+      become: true
+      when:
+        - kernel_lockdown_runtime_managed | bool
+        - kernel_lockdown_level | length == 0
+        - kernel_lockdown_remove_dropin_when_empty | bool
+      notify:
+        - Regenerate grub configuration
+        - Kernel lockdown reboot required
