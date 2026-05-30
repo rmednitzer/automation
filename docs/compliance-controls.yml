@@ -6,6 +6,12 @@
 # are mapped to the regulatory frameworks listed in the Regulatory Scope section
 # of the README.
 #
+# Structure (JSON Schema, draft 2020-12):
+#   docs/schemas/compliance-controls.schema.json
+# Validated by scripts/validate-compliance-controls.py (structural checks
+# always; full JSON-Schema validation when the optional `jsonschema` package
+# is installed). See LIMITATIONS.md L6.
+#
 # Regulatory frameworks:
 #   - NIS2 Directive (EU 2022/2555) — Art 20-23
 #   - NISG 2026 (Austrian transposition) — effective 2026-10-01

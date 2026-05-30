@@ -12,3 +12,31 @@
   loop_control:
     label: "{{ item.key }}={{ item.value }}"
   become: true
+
+# Kernel-version-dependent knobs (e.g. kernel.io_uring_disabled on >= 6.6,
+# dev.tty.legacy_tiocsti only with CONFIG_LEGACY_TIOCSTI=y). Apply each only
+# when its /proc/sys path exists so the same baseline is idempotent across
+# the 24.04 (kernel 6.8) and 26.04 (kernel 7.0) matrix: present -> enforced,
+# absent -> skipped (never a hard failure on a kernel that lacks the knob).
+- name: Probe for optional sysctl paths
+  ansible.builtin.stat:
+    path: "/proc/sys/{{ item.key | replace('.', '/') }}"
+  loop: "{{ common_sysctl_settings_optional | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: common_sysctl_optional_paths
+  changed_when: false
+  become: true
+
+- name: Apply optional sysctl settings present on this kernel
+  ansible.posix.sysctl:
+    name: "{{ item.item.key }}"
+    value: "{{ item.item.value }}"
+    sysctl_file: /etc/sysctl.d/90-ansible.conf
+    reload: true
+    state: present
+  loop: "{{ common_sysctl_optional_paths.results }}"
+  loop_control:
+    label: "{{ item.item.key }}={{ item.item.value }}"
+  when: item.stat.exists
+  become: true

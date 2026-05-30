@@ -1,5 +1,5 @@
 ---
-# NTP role - Chrony time synchronization for Ubuntu 24.04 LTS
+# NTP role - Chrony time synchronization for Ubuntu 24.04/26.04 LTS
 
 - name: Remove systemd-timesyncd if present
   ansible.builtin.apt:

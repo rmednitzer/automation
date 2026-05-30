@@ -1,5 +1,5 @@
 ---
-# SRE/Platform/Security toolchain installer for Ubuntu 24.04 LTS
+# SRE/Platform/Security toolchain installer for Ubuntu 24.04/26.04 LTS
 # NIS2 Art 21.2(a)(e), CRA Annex I Part I, ISO 27001 A.8.30, POL-002, CTL-002
 
 - name: Resolve architecture facts

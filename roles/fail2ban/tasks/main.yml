@@ -1,5 +1,5 @@
 ---
-# Fail2Ban role for Ubuntu 24.04 LTS
+# Fail2Ban role for Ubuntu 24.04/26.04 LTS
 
 - name: Install fail2ban
   ansible.builtin.apt:

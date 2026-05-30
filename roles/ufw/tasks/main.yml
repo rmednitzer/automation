@@ -1,5 +1,5 @@
 ---
-# UFW firewall role for Ubuntu 24.04 LTS
+# UFW firewall role for Ubuntu 24.04/26.04 LTS
 
 - name: Install UFW
   ansible.builtin.apt:

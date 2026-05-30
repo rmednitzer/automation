@@ -1,6 +1,7 @@
 # `auditd` role
 
-System audit logging via auditd for Ubuntu 24.04 LTS.
+System audit logging via auditd for Ubuntu 24.04 LTS and 26.04 LTS
+(ADR-004).
 
 ## What it does
 
@@ -44,3 +45,15 @@ System audit logging via auditd for Ubuntu 24.04 LTS.
 | `auditd_immutable` | `true` | Append `-e 2` to lock the rule set until reboot |
 
 Full list in `defaults/main.yml`.
+
+## Testing
+
+A Molecule scenario (`molecule/default/`) converges the role on Ubuntu
+24.04 and 26.04 (ADR-004) and asserts the rules file deploys with the
+`execve` accounting rule (key `exec`), the identity / sudoers / `plugins.d`
+watches, no dead `/etc/audisp/` watch, and `auditd.conf` with
+`log_format = ENRICHED`. It sets `auditd_immutable: false` so a second
+converge reconciles without a reboot. The audit subsystem is host-global,
+so the scenario asserts deployed artifacts, not live kernel rules. Run
+`make molecule` on a Docker host (unrun in the authoring sandbox — see
+`LIMITATIONS.md` L2/L3).

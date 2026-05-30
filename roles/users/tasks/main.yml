@@ -1,5 +1,5 @@
 ---
-# Users role for Ubuntu 24.04 LTS
+# Users role for Ubuntu 24.04/26.04 LTS
 
 - name: Include password policy tasks
   ansible.builtin.import_tasks: password_policy.yml

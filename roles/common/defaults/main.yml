@@ -108,6 +108,12 @@ common_sysctl_settings:
   # Protect hardlinks/symlinks
   fs.protected_hardlinks: 1
   fs.protected_symlinks: 1
+  # Protect against file-creation races in world-writable sticky dirs.
+  # KSPP recommends fs.protected_fifos=2 / fs.protected_regular=2 (apply to
+  # both group- and other-writable sticky dirs). Present since kernel 4.19,
+  # so safe on both 24.04 (6.8) and 26.04 (7.0). KSPP Recommended_Settings.
+  fs.protected_fifos: 2
+  fs.protected_regular: 2
   # Additional kernel hardening (CIS-aligned). Overridable — disable on
   # hosts that legitimately need kexec (live-patching) or perf profiling.
   # Block kexec so a new kernel cannot be loaded at runtime (CIS 1.5.x).
@@ -116,6 +122,36 @@ common_sysctl_settings:
   dev.tty.ldisc_autoload: 0
   # Restrict perf_event_open to privileged users (CIS — side-channel risk).
   kernel.perf_event_paranoid: 2
+  # Harden the eBPF JIT against heap-spray / branch-predictor attacks
+  # (KSPP + CIS Ubuntu 24.04 §1; present since kernel 4.7). Overridable.
+  net.core.bpf_jit_harden: 2
+  # Disable unprivileged userfaultfd — a recurring use-after-free LPE
+  # primitive (KSPP; present since kernel 5.11, so on both 6.8 and 7.0).
+  vm.unprivileged_userfaultfd: 0
+
+# Kernel-version-dependent sysctls. These knobs may be ABSENT depending on
+# the kernel's compile-time config, so they are applied only when their
+# /proc/sys path exists (see tasks/sysctl.yml). This keeps the role
+# idempotent across the 24.04 (kernel 6.8) / 26.04 (kernel 7.0) matrix
+# without weakening either: where a knob is missing it is skipped, where it
+# is present it is enforced. Override values here; set a key's value to the
+# kernel default to effectively disable enforcement.
+common_sysctl_settings_optional:
+  # Restrict io_uring, a prominent local-privilege-escalation attack surface
+  # in recent kernels. 0=unrestricted (kernel default), 1=disabled for
+  # unprivileged processes outside kernel.io_uring_group, 2=disabled for all.
+  # The sysctl exists on kernel >= 6.6 (both 6.8 and 7.0 have it) but is
+  # gated defensively. Default 1 (block unprivileged use) — CIS Ubuntu 24.04
+  # §1 io_uring lockdown. Hosts whose workloads need io_uring must override
+  # to 0. Ref: kernel.io_uring_disabled (Documentation/admin-guide/sysctl).
+  kernel.io_uring_disabled: 1
+  # Block legacy TIOCSTI terminal-injection (CVE class: command injection
+  # into a parent shell). The sysctl ONLY exists when the kernel is built
+  # with CONFIG_LEGACY_TIOCSTI=y; hardened kernels compile it out, in which
+  # case TIOCSTI is already disabled and this key's /proc path is absent.
+  # KSPP recommends dev.tty.legacy_tiocsti=0. Path-gated so it is a no-op on
+  # kernels that lack the knob (TIOCSTI already off there).
+  dev.tty.legacy_tiocsti: 0
 
 # Systemd journal max size
 # CTL-003 — retention per log category
@@ -124,6 +160,25 @@ common_journal_max_retention: "6month"
 
 # MOTD banner
 common_motd_enabled: true
+
+# Core kernel-hardening sysctls applied by tasks/kernel_hardening.yml.
+# Broken out as overridable variables (previously hardcoded in the task) so
+# operators can tune them per host without editing tasks — defaults are
+# unchanged (no weakening). Values are KSPP / CIS Ubuntu 24.04 §1 aligned
+# and present on both kernel 6.8 (24.04) and 7.0 (26.04).
+#   kptr_restrict=2          hide kernel pointers from all users (KSPP)
+#   dmesg_restrict=1         restrict dmesg to CAP_SYSLOG (KSPP, CIS 1.5.x)
+#   unprivileged_bpf=1       no unprivileged bpf() syscall (KSPP, CIS)
+#   randomize_va_space=2     full ASLR (KSPP)
+#   ptrace_scope=2           admin-only ptrace (CIS Ubuntu 24.04; KSPP=3).
+#                            Kept at 2 (not 3) so privileged debuggers still
+#                            work; raise to 3 for the strictest posture, or
+#                            lower to 1 on hosts that debug across processes.
+common_kernel_kptr_restrict: 2
+common_kernel_dmesg_restrict: 1
+common_kernel_unprivileged_bpf_disabled: 1
+common_kernel_randomize_va_space: 2
+common_kernel_ptrace_scope: 2
 
 # Kernel module blacklist (disable unnecessary/risky modules)
 # CRA Annex I Part I — minimal attack surface

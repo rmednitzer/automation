@@ -135,3 +135,17 @@ ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml \
   `github.com` / `objects.githubusercontent.com`.
 - Re-runs are idempotent: tools already present are skipped unless
   `sre_toolchain_force` is set.
+
+## Testing
+
+A Molecule scenario (`molecule/default/`) reduces the catalogue to
+`opa` + `kubeconform` via `sre_toolchain_skip` and asserts both land on
+`$PATH` and execute, the evidence manifest is valid JSON, and the strict
+SHA256 path recorded `verified` for each (a mismatch would abort — that is
+the test). The cosign signature path stays unrun (`verify_signatures=false`
+default; cosign not installed) and is asserted as `not_checked`. Because it
+needs Docker **and** outbound HTTPS to the GitHub API + release CDN
+(ideally `SRE_TOOLCHAIN_GITHUB_TOKEN` to avoid the 60-req/hour limit), it is
+kept out of the default `molecule` matrix — run it explicitly with
+`make molecule-sre` (unrun in the authoring sandbox — see `LIMITATIONS.md`
+L5).

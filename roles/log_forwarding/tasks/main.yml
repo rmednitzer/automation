@@ -1,5 +1,5 @@
 ---
-# Log forwarding role for Ubuntu 24.04 LTS
+# Log forwarding role for Ubuntu 24.04/26.04 LTS
 # CTL-003, NIS2 Art 21.2(a), GDPR Art 5(2)
 
 - name: Ensure rsyslog is installed

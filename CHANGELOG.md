@@ -9,6 +9,51 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 Ubuntu 26.04 dual-support + residual-audit-gap closure. New ADR:
+  [ADR-004](docs/ADR-004-ubuntu-2604-dual-support.md) (24.04 + 26.04
+  dual-support; interim "CIS 24.04 + kernel-7.0/KSPP delta" benchmark
+  stance). No CTL-/POL- catalog membership changed.
+  - **Dual-OS support (ADR-004):** every role's `meta/main.yml` `platforms`
+    block now declares `resolute` (26.04, kernel 7.0) alongside `noble`
+    (24.04); meta descriptions and task headers updated to 24.04/26.04.
+    README + CLAUDE.md "Target OS" now list both releases.
+  - **Behaviour change — `common` sysctl baseline (kernel-7.0 / KSPP review,
+    ADR-004):** added overridable KSPP/CIS knobs to `common_sysctl_settings`
+    (`net.core.bpf_jit_harden=2`, `fs.protected_fifos=2`,
+    `fs.protected_regular=2`, `vm.unprivileged_userfaultfd=0`); added a new
+    **path-gated** `common_sysctl_settings_optional` dict applied only where
+    the `/proc/sys` path exists (`kernel.io_uring_disabled=1`,
+    `dev.tty.legacy_tiocsti=0`) so the baseline is idempotent across kernel
+    6.8 / 7.0; made the previously-hardcoded `kernel_hardening.yml` sysctls
+    overridable via `common_kernel_*` defaults (same values — no weakening).
+    Re-validated `pam_faillock`/`pam-auth-update` and
+    `unattended-upgrades`/`apt-listchanges` as unchanged on 26.04. CTL-002,
+    CTL-003, POL-004.
+  - **Molecule coverage (L2/L3/L5):** `users` scenario now tests **both**
+    24.04 and 26.04 images; new converge+verify scenarios for
+    `ssh_hardening` (sshd -t passes, weak KEX/ciphers absent),
+    `auditd` (rules file + execve rule, no dead audisp watch), and `common`
+    (new sysctls written to the drop-in), each dual-OS and added to the CI
+    `molecule` matrix; new egress-gated `sre_toolchain` scenario
+    (`opa`+`kubeconform`, manifest is valid JSON, strict-checksum path
+    `verified`, signature path recorded `not_checked`) behind
+    `make molecule-sre`. **All unrun here (no Docker; sre needs GitHub
+    egress); CI `molecule` job stays `continue-on-error`.**
+  - **Vault worked example (L4 closed):** shipped an *actually*
+    ansible-vault-encrypted `inventories/development/group_vars/vault.yml`
+    (throwaway password `example`, placeholders only) so the
+    `ansible-vault-encrypted` guard has a real file; new CI `vault-example`
+    job decrypts it to prove the convention end-to-end; CLAUDE.md secrets
+    section documents both the template and the encrypted example.
+  - **Compliance-controls JSON Schema (L6 closed):** published
+    `docs/schemas/compliance-controls.schema.json` (draft 2020-12),
+    referenced from the YAML header; `validate-compliance-controls.py`
+    validates against it when the optional `jsonschema` package is present
+    (added to `requirements-dev.txt`) and keeps its structural checks
+    authoritative otherwise.
+  - **Docs:** LIMITATIONS L1 opened (dual-support), L2/L3/L5 expanded,
+    L4/L6 closed; README ADR table + role READMEs updated.
+
 - 2026-05-30 remediation pass — runtime-correctness, security-baseline, and
   supply-chain hardening from the completed code audit. New ADRs:
   [ADR-002](docs/ADR-002-sre-toolchain-supply-chain.md) (supply-chain) and

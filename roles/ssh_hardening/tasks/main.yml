@@ -1,5 +1,5 @@
 ---
-# SSH hardening role for Ubuntu 24.04 LTS
+# SSH hardening role for Ubuntu 24.04/26.04 LTS
 
 - name: Ensure OpenSSH server is installed
   ansible.builtin.apt:
