@@ -22,10 +22,37 @@ sre_toolchain_dest_dir: /usr/local/bin
 # so re-runs are idempotent and do not churn working tools.
 sre_toolchain_force: false
 
-# Checksum enforcement.
+# Checksum enforcement. Default 'strict' (behaviour change — see
+# docs/ADR-002): the role refuses to install any asset for which no SHA256
+# checksum can be found, rather than installing unverified bytes.
 #   strict      — abort a tool when upstream publishes no checksum.
-#   best-effort — log a warning and proceed (matches the bash installer default).
-sre_toolchain_checksum_policy: best-effort
+#   best-effort — log a warning and proceed anyway (the legacy bash-installer
+#                 behaviour; opt in explicitly, accepting unverified installs).
+sre_toolchain_checksum_policy: strict
+
+# Optional keyless cosign signature verification (CRA Annex I supply-chain
+# integrity). Default false. When true, for tools that publish a cosign
+# signature + certificate alongside their checksum bundle, the role verifies
+# the bundle's signature against the issuer/identity below with
+# `cosign verify-blob` BEFORE trusting the checksums. cosign is installed
+# first (it is part of the tool catalogue). Tools without a published
+# signature are unaffected unless sre_toolchain_require_signatures is set.
+sre_toolchain_verify_signatures: false
+
+# When signature verification is enabled, also REQUIRE a verifiable signature:
+# abort any tool that does not publish a cosign signature + certificate.
+# Default false so enabling verification does not break tools that only ship
+# checksums. Set true for the strictest posture.
+sre_toolchain_require_signatures: false
+
+# Expected keyless-signing identity for cosign verify-blob. Most projects
+# sign in GitHub Actions, so the certificate identity is a workflow ref and
+# the OIDC issuer is GitHub's token service. These are regexes
+# (--certificate-identity-regexp / --certificate-oidc-issuer). The default
+# issuer matches GitHub Actions; the identity default accepts any
+# github.com workflow and SHOULD be tightened per tool in inventory.
+sre_toolchain_cosign_certificate_oidc_issuer: "https://token.actions.githubusercontent.com"
+sre_toolchain_cosign_certificate_identity_regexp: "^https://github.com/.+/.github/workflows/.+@.+"
 
 # Where to write the installed-versions manifest (JSON). The manifest is
 # updated after each run and serves as evidence under CTL-002.

@@ -1,0 +1,109 @@
+---
+# verify_signature.yml — keyless cosign verification of a tool's checksum
+# bundle (H2/H3b). Many projects (cosign, syft, trivy, flux, …) sign their
+# release checksums file in GitHub Actions and publish, alongside it:
+#   <bundle>.sig   — the cosign signature (base64)
+#   <bundle>.pem   — the signing certificate (Fulcio short-lived cert)
+# Verifying the bundle's signature, then verifying each asset's SHA256
+# against that signed bundle, gives provenance up to the workflow identity.
+#
+# This task is a no-op unless sre_toolchain_verify_signatures is true. cosign
+# is bootstrapped by tasks/main.yml before the install loop. Honour
+# sre_toolchain_require_signatures: when true a tool without a verifiable
+# signature aborts; when false it is allowed through (checksum policy still
+# applies). Sets `signature_result` (verified | no_signature | failed).
+#
+# Caller variables:
+#   release_assets — full assets list from the GitHub release JSON
+# Refs: cosign verify-blob(1); Sigstore keyless / Fulcio / Rekor.
+
+- name: "Reset signature-bundle search state"
+  ansible.builtin.set_fact:
+    sig_bundle: {}
+
+- name: "Identify checksum bundle for signature verification"
+  ansible.builtin.set_fact:
+    sig_bundle: >-
+      {{ (release_assets
+          | selectattr('name', 'match', '(?i)' + item)
+          | rejectattr('name', 'match', '.*\\.(pem|sig|asc|cert)$')
+          | list | first) | default({}) }}
+  loop: "{{ sre_toolchain_checksum_bundle_patterns }}"
+  loop_control:
+    label: "{{ item }}"
+  when: sig_bundle | length == 0
+
+- name: "Locate detached signature and certificate assets"
+  ansible.builtin.set_fact:
+    sig_asset: >-
+      {{ (release_assets
+          | selectattr('name', 'equalto', sig_bundle.name + '.sig')
+          | list | first) | default({}) }}
+    cert_asset: >-
+      {{ (release_assets
+          | selectattr('name', 'match', '^' + (sig_bundle.name | regex_escape) + '\\.(pem|cert)$')
+          | list | first) | default({}) }}
+  when: sig_bundle | length > 0
+
+- name: "No signature available for this tool"
+  ansible.builtin.set_fact:
+    signature_result: no_signature
+  when: >-
+    sig_bundle | length == 0
+    or sig_asset | default({}) | length == 0
+    or cert_asset | default({}) | length == 0
+
+- name: "Require a signature but none was found"
+  ansible.builtin.fail:
+    msg: >-
+      REQUIRE_SIGNATURES: no cosign signature (.sig) + certificate (.pem)
+      found for {{ tool.repo }} checksum bundle
+      '{{ sig_bundle.name | default("<none>") }}'.
+  when:
+    - sre_toolchain_require_signatures | bool
+    - signature_result | default('') == 'no_signature'
+
+- name: "Verify the checksum bundle signature"
+  when: signature_result is not defined
+  block:
+    - name: "Download checksum bundle, signature, and certificate"
+      ansible.builtin.get_url:
+        url: "{{ item.url }}"
+        dest: "{{ sre_toolchain_tmp_dir }}/{{ item.name }}"
+        headers: "{{ tool_headers }}"
+        mode: "0640"
+        force: true
+      loop:
+        - {name: "{{ sig_bundle.name }}", url: "{{ sig_bundle.browser_download_url }}"}
+        - {name: "{{ sig_asset.name }}", url: "{{ sig_asset.browser_download_url }}"}
+        - {name: "{{ cert_asset.name }}", url: "{{ cert_asset.browser_download_url }}"}
+      loop_control:
+        label: "{{ item.name }}"
+      become: true
+
+    - name: "Run cosign verify-blob against the signed checksum bundle"
+      ansible.builtin.command:
+        cmd: >-
+          {{ sre_toolchain_cosign_bin }} verify-blob
+          --certificate {{ (sre_toolchain_tmp_dir + '/' + cert_asset.name) | quote }}
+          --signature {{ (sre_toolchain_tmp_dir + '/' + sig_asset.name) | quote }}
+          --certificate-identity-regexp {{ sre_toolchain_cosign_certificate_identity_regexp | quote }}
+          --certificate-oidc-issuer {{ sre_toolchain_cosign_certificate_oidc_issuer | quote }}
+          {{ (sre_toolchain_tmp_dir + '/' + sig_bundle.name) | quote }}
+      register: cosign_verify
+      changed_when: false
+      failed_when: false
+      become: true
+      environment:
+        COSIGN_EXPERIMENTAL: "0"
+
+    - name: "Record signature verification result"
+      ansible.builtin.set_fact:
+        signature_result: "{{ 'verified' if cosign_verify.rc == 0 else 'failed' }}"
+
+    - name: "Abort on signature verification failure"
+      ansible.builtin.fail:
+        msg: >-
+          SIGNATURE VERIFICATION FAILED for {{ tool.repo }} bundle
+          '{{ sig_bundle.name }}': {{ cosign_verify.stderr | default('see cosign output') }}
+      when: signature_result == 'failed'

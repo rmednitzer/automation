@@ -55,6 +55,24 @@
 - name: "Install"
   when: not tool_skip
   block:
+    - name: "Resolve requested release ref"
+      ansible.builtin.set_fact:
+        # Optional per-tool pinning (H3c): `tag:` (or `version:`) in
+        # vars/main.yml pins the GitHub release tag used; otherwise track
+        # latest. The value is used verbatim as the release tag, so it must
+        # match the upstream tag exactly (e.g. "v1.2.3").
+        tool_pinned_tag: "{{ tool.tag | default(tool.version | default('')) }}"
+
+    - name: "Fetch pinned release metadata"
+      ansible.builtin.uri:
+        url: "https://api.github.com/repos/{{ tool.repo }}/releases/tags/{{ tool_pinned_tag }}"
+        headers: "{{ tool_headers }}"
+        return_content: true
+        status_code: [200]
+        body_format: json
+      register: tool_release_pinned
+      when: tool_pinned_tag | length > 0
+
     - name: "Fetch latest release metadata"
       ansible.builtin.uri:
         url: "https://api.github.com/repos/{{ tool.repo }}/releases/latest"
@@ -62,7 +80,14 @@
         return_content: true
         status_code: [200]
         body_format: json
-      register: tool_release
+      register: tool_release_latest
+      when: tool_pinned_tag | length == 0
+
+    - name: "Select the resolved release"
+      ansible.builtin.set_fact:
+        tool_release: >-
+          {{ tool_release_pinned if tool_pinned_tag | length > 0
+             else tool_release_latest }}
 
     - name: "Select primary asset"
       ansible.builtin.set_fact:
@@ -103,6 +128,19 @@
         mode: "0640"
         force: true
       become: true
+
+    - name: "Compute SHA256 of the downloaded asset (evidence)"
+      ansible.builtin.stat:
+        path: "{{ sre_toolchain_tmp_dir }}/{{ tool_asset.name }}"
+        checksum_algorithm: sha256
+      register: tool_asset_stat
+      become: true
+
+    - name: "Verify checksum-bundle signature with cosign (keyless)"
+      ansible.builtin.include_tasks: verify_signature.yml
+      vars:
+        release_assets: "{{ tool_release.json.assets }}"
+      when: sre_toolchain_verify_signatures | bool
 
     - name: "Verify SHA256"
       ansible.builtin.include_tasks: verify_checksum.yml
@@ -193,13 +231,24 @@
         - tool.type == 'archive'
         - tool.archive_paths is not defined
 
-    - name: "Record installed version"
+    - name: "Record installed version and evidence"
       ansible.builtin.set_fact:
         sre_toolchain_installed: >-
           {{ sre_toolchain_installed
              | combine(dict(tool_bins
                             | zip([tool_release.json.tag_name]
                                   * (tool_bins | length)))) }}
+        # H3c: per-tool resolved tag + sha256 (and signature status) recorded
+        # for the evidence manifest (CTL-002). Keyed by the primary binary.
+        sre_toolchain_evidence: >-
+          {{ sre_toolchain_evidence
+             | combine({tool_primary: {
+                 'tag': tool_release.json.tag_name,
+                 'asset': tool_asset.name,
+                 'sha256': tool_asset_stat.stat.checksum,
+                 'pinned': (tool_pinned_tag | length > 0),
+                 'checksum': checksum_result | default('unknown'),
+                 'signature': signature_result | default('not_checked')}}) }}
         sre_toolchain_ok: "{{ (sre_toolchain_ok | int) + 1 }}"
   rescue:
     - name: "Mark failure and continue"
