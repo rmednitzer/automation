@@ -34,31 +34,39 @@
 - name: "SKIP — already installed"
   when: tool_skip
   block:
-    # Read the recorded version straight from the previous manifest fact
-    # (parsed once in main.yml) rather than shelling out to jq per tool.
+    # Record the version, preferring an entry already recorded THIS run (e.g.
+    # cosign, freshly bootstrapped in main.yml before this loop) over the
+    # previous manifest fact, which is empty on a first install and would
+    # otherwise clobber the just-installed version with 'unknown'. Falls back
+    # to the previous manifest, then 'unknown'. No jq shell-out per tool.
     - name: "Record existing version"
       ansible.builtin.set_fact:
         sre_toolchain_installed: >-
           {{ sre_toolchain_installed
              | combine(dict(tool_bins
-                            | zip([(sre_toolchain_prev_manifest.tools | default({}))[tool_primary]
-                                   | default('unknown')]
+                            | zip([sre_toolchain_installed[tool_primary]
+                                   | default((sre_toolchain_prev_manifest.tools | default({}))[tool_primary]
+                                             | default('unknown'))]
                                   * (tool_bins | length)))) }}
         sre_toolchain_skipped: "{{ (sre_toolchain_skipped | int) + 1 }}"
-    # Carry the tool's previous evidence entry forward UNCHANGED so a skip-only
-    # re-converge writes a byte-identical manifest (idempotence). If the prior
-    # manifest had no evidence for this tool, record a 'skipped' marker so the
-    # manifest stays well-formed without claiming a fresh checksum/signature.
+    # Carry the tool's evidence forward UNCHANGED so a skip-only re-converge
+    # writes a byte-identical manifest (idempotence). Prefer evidence already
+    # recorded THIS run (a freshly bootstrapped cosign records real
+    # checksum/signature evidence before this loop re-processes it as skipped —
+    # that must not be overwritten), then the previous manifest, then a
+    # 'skipped' marker so the manifest stays well-formed without claiming a
+    # fresh checksum/signature.
     - name: "Preserve previous evidence for the skipped tool"
       ansible.builtin.set_fact:
         sre_toolchain_evidence: >-
           {{ sre_toolchain_evidence
              | combine({tool_primary:
-                 (sre_toolchain_prev_manifest.evidence | default({}))[tool_primary]
+                 sre_toolchain_evidence[tool_primary]
+                 | default((sre_toolchain_prev_manifest.evidence | default({}))[tool_primary]
                  | default({'tag': (sre_toolchain_prev_manifest.tools | default({}))[tool_primary]
                                    | default('unknown'),
                             'checksum': 'skipped',
-                            'signature': 'not_checked'})}) }}
+                            'signature': 'not_checked'}))}) }}
 
 - name: "Install"
   when: not tool_skip

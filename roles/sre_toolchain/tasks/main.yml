@@ -71,6 +71,13 @@
     group: root
     mode: "0700"
   become: true
+  # Ephemeral working area: created here and unconditionally removed in the
+  # always block below, so it never persists across converges. Reporting it as
+  # changed (create now, remove in always) would make Molecule's idempotence
+  # pass fail on every run even when all tools are skipped, though no persistent
+  # state changes. changed_when:false reflects that it is transient scratch,
+  # not managed state, keeping the idempotence check meaningful.
+  changed_when: false
   tags:
     - sre-toolchain
 
@@ -202,3 +209,8 @@
         path: "{{ sre_toolchain_tmp_dir }}"
         state: absent
       become: true
+      # Tear-down of the ephemeral scratch dir (see "Ensure scratch directory
+      # exists"): non-reporting so the idempotence pass is not tripped by this
+      # transient cleanup. Downloaded archives must never linger, so this always
+      # runs regardless.
+      changed_when: false
