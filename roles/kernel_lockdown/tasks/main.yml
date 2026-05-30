@@ -85,10 +85,11 @@
         - Regenerate grub configuration
         - Kernel lockdown reboot required
 
-    # If the level is cleared back to "" after having been set, remove the
-    # drop-in so the cmdline addition goes away on the next grub regeneration
-    # (a reboot is still needed to actually lower it — lockdown is one-way at
-    # runtime).
+    # Optional teardown: when the level is cleared back to "" AND removal is
+    # explicitly opted in, remove this role's drop-in. OFF by default so an
+    # audit-only run stays READ-ONLY and never deletes a 99-lockdown.cfg that
+    # manual hardening / earlier automation may own. Lowering lockdown still
+    # needs a reboot (one-way at runtime), so this also flags reboot-required.
     - name: Remove the kernel lockdown GRUB drop-in when auditing only
       ansible.builtin.file:
         path: "{{ kernel_lockdown_grub_dropin }}"
@@ -97,4 +98,7 @@
       when:
         - kernel_lockdown_runtime_managed | bool
         - kernel_lockdown_level | length == 0
-      notify: Regenerate grub configuration
+        - kernel_lockdown_remove_dropin_when_empty | bool
+      notify:
+        - Regenerate grub configuration
+        - Kernel lockdown reboot required

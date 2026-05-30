@@ -47,6 +47,14 @@ kernel_lockdown_level: ""
 # Read /sys/kernel/security/lockdown and report the current level (read-only).
 kernel_lockdown_audit: true
 
+# Whether an audit-only run (empty kernel_lockdown_level) may REMOVE a
+# previously deployed drop-in. FALSE by default so audit-only is genuinely
+# read-only: a baseline run never deletes /etc/default/grub.d/99-lockdown.cfg
+# (which may have been placed by manual hardening or earlier automation) and
+# never regenerates GRUB. Set true ONLY to have the role tear its own drop-in
+# back down when you clear the level — lowering lockdown still needs a reboot.
+kernel_lockdown_remove_dropin_when_empty: false
+
 # Path of the GRUB drop-in this role manages (Ubuntu sources /etc/default/grub.d
 # /*.cfg from grub-mkconfig, so we compose rather than edit /etc/default/grub).
 kernel_lockdown_grub_dropin: /etc/default/grub.d/99-lockdown.cfg

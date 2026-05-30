@@ -10,10 +10,12 @@
   become: true
   changed_when: true
 
-# A kernel command-line change only applies after a reboot, and the role never
-# reboots a host itself. Surface that clearly when the drop-in changed.
+# A kernel command-line change (level set OR drop-in removed) only applies after
+# a reboot, and the role never reboots a host itself. Surface that clearly when
+# the drop-in changed.
 - name: Kernel lockdown reboot required
   ansible.builtin.debug:
     msg: >-
-      Kernel lockdown set to '{{ kernel_lockdown_level }}' on the GRUB command
-      line. REBOOT required to activate it (the role does not reboot hosts).
+      Kernel lockdown boot configuration changed (desired level:
+      '{{ kernel_lockdown_level or 'none' }}'). A REBOOT is required to apply it;
+      the role does not reboot hosts. Lockdown is only lowered after a reboot.

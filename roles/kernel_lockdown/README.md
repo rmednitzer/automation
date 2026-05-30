@@ -57,7 +57,11 @@ kernel_lockdown_level: integrity   # or "confidentiality"; "" = audit only
 ```
 
 Then reboot the host (on your schedule) to activate it. Clearing the value back
-to `""` removes the drop-in; the level is lowered only after the next reboot.
+to `""` is **audit-only and read-only** — it leaves any existing drop-in in
+place (so the role never removes a `99-lockdown.cfg` it may not own). To have
+the role tear down *its own* drop-in when you clear the level, set
+`kernel_lockdown_remove_dropin_when_empty: true`; lockdown is still only lowered
+after the next reboot.
 
 ## Key variables
 
@@ -66,6 +70,7 @@ to `""` removes the drop-in; the level is lowered only after the next reboot.
 | `kernel_lockdown_enabled` | `true` | Master switch (audit only until a level is set) |
 | `kernel_lockdown_level` | `""` | `""` (audit) / `integrity` / `confidentiality` |
 | `kernel_lockdown_audit` | `true` | Report the current level (read-only) |
+| `kernel_lockdown_remove_dropin_when_empty` | `false` | Allow an empty-level run to remove this role's drop-in (off → audit-only stays read-only) |
 | `kernel_lockdown_manage_runtime` | `true` | Manage audit + cmdline (auto-off in container guests) |
 | `kernel_lockdown_grub_dropin` | `/etc/default/grub.d/99-lockdown.cfg` | Managed GRUB drop-in path |
 
