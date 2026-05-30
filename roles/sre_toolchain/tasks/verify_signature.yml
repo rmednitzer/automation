@@ -17,9 +17,14 @@
 #   release_assets — full assets list from the GitHub release JSON
 # Refs: cosign verify-blob(1); Sigstore keyless / Fulcio / Rekor.
 
-- name: "Reset signature-bundle search state"
+# Reset BOTH the bundle search state and the per-tool result. Without
+# resetting signature_result, a value left over from a previous tool would
+# make the `when: signature_result == 'pending'` verify block skip and the
+# manifest inherit stale evidence (Codex/Copilot review).
+- name: "Reset signature search state for this tool"
   ansible.builtin.set_fact:
     sig_bundle: {}
+    signature_result: pending
 
 - name: "Identify checksum bundle for signature verification"
   ansible.builtin.set_fact:
@@ -49,9 +54,10 @@
   ansible.builtin.set_fact:
     signature_result: no_signature
   when: >-
-    sig_bundle | length == 0
-    or sig_asset | default({}) | length == 0
-    or cert_asset | default({}) | length == 0
+    signature_result == 'pending'
+    and (sig_bundle | length == 0
+         or sig_asset | default({}) | length == 0
+         or cert_asset | default({}) | length == 0)
 
 - name: "Require a signature but none was found"
   ansible.builtin.fail:
@@ -64,7 +70,7 @@
     - signature_result | default('') == 'no_signature'
 
 - name: "Verify the checksum bundle signature"
-  when: signature_result is not defined
+  when: signature_result == 'pending'
   block:
     - name: "Download checksum bundle, signature, and certificate"
       ansible.builtin.get_url:

@@ -51,19 +51,24 @@
           {{ sre_toolchain_installed
              | combine({'kubectx': kubectx_existing.stdout | default('unknown'),
                         'kubens':  kubectx_existing.stdout | default('unknown')}) }}
-        sre_toolchain_skip: "{{ (sre_toolchain_skip | int) + 1 }}"
+        sre_toolchain_skipped: "{{ (sre_toolchain_skipped | int) + 1 }}"
+
+# kubectx/kubens publish no upstream checksum, so under the strict policy
+# they are skipped (counted as skipped, not failed) rather than aborting the
+# whole run — opt in with sre_toolchain_checksum_policy: best-effort or by
+# removing 'kubectx' from sre_toolchain_skip. (Codex/Copilot review.)
+- name: "Skip kubectx/kubens under strict checksum policy (no upstream sums)"
+  ansible.builtin.set_fact:
+    sre_toolchain_skipped: "{{ (sre_toolchain_skipped | int) + 1 }}"
+  when:
+    - not kubectx_skip
+    - sre_toolchain_checksum_policy == 'strict'
 
 - name: "Install from source tarball"
-  when: not kubectx_skip
+  when:
+    - not kubectx_skip
+    - sre_toolchain_checksum_policy != 'strict'
   block:
-    - name: "Abort under strict checksum policy (no upstream sums)"
-      ansible.builtin.fail:
-        msg: >-
-          STRICT: kubectx/kubens publishes no checksum for its source
-          tarball. Set sre_toolchain_checksum_policy: best-effort or add
-          kubectx to sre_toolchain_skip.
-      when: sre_toolchain_checksum_policy == 'strict'
-
     - name: "Fetch latest release tag"
       ansible.builtin.uri:
         url: https://api.github.com/repos/ahmetb/kubectx/releases/latest

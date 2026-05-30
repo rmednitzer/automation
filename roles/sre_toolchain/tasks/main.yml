@@ -90,7 +90,7 @@
     sre_toolchain_installed: {}
     sre_toolchain_evidence: {}
     sre_toolchain_ok: 0
-    sre_toolchain_skip: 0
+    sre_toolchain_skipped: 0
     sre_toolchain_fail: 0
   tags:
     - sre-toolchain
@@ -144,7 +144,7 @@
       ansible.builtin.debug:
         msg: >-
           sre_toolchain summary: installed={{ sre_toolchain_ok }}
-          skipped={{ sre_toolchain_skip }} failed={{ sre_toolchain_fail }}
+          skipped={{ sre_toolchain_skipped }} failed={{ sre_toolchain_fail }}
 
     - name: Fail the play when any tool failed to install
       ansible.builtin.fail:

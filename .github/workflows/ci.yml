@@ -169,10 +169,19 @@ jobs:
           pip install "molecule>=6" "molecule-plugins[docker]" docker
 
       - name: Install Galaxy collections
+        # ansible.cfg pins collections_path to the repo-root collections/ dir,
+        # so this installs there.
         run: ansible-galaxy install -r requirements.yml
 
       - name: Run molecule test
         working-directory: roles/${{ matrix.role }}
+        env:
+          # molecule runs from roles/<role>, where the repo-root ansible.cfg
+          # (and its relative collections_path) does not apply, so Ansible
+          # would not find ansible.posix / community.general. Point it at the
+          # workspace collections/ dir explicitly so converge resolves modules
+          # like community.general.pamd and ansible.posix.authorized_key.
+          ANSIBLE_COLLECTIONS_PATH: ${{ github.workspace }}/collections
         run: molecule test
 
   pre-commit:

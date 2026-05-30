@@ -8,9 +8,13 @@ umask {{ users_umask }}
 
 {% if users_login_timeout | int > 0 %}
 # Idle-session timeout. Marked readonly and exported so an interactive user
-# cannot simply `unset TMOUT` to defeat the auto-logout (CIS 5.x). Guard the
-# readonly so re-sourcing /etc/profile does not error on an already-set var.
-TMOUT={{ users_login_timeout }}
-readonly TMOUT 2>/dev/null || true
-export TMOUT
+# cannot simply `unset TMOUT` to defeat the auto-logout (CIS 5.x). The whole
+# block is guarded so re-sourcing /etc/profile does not reassign (and error
+# on) the already-readonly variable: assigning to a readonly var fails
+# *before* any `|| true` on a later line could suppress it.
+if ! readonly -p 2>/dev/null | grep -q ' TMOUT='; then
+  TMOUT={{ users_login_timeout }}
+  readonly TMOUT
+  export TMOUT
+fi
 {% endif %}

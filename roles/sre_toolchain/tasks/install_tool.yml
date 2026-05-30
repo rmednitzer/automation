@@ -50,7 +50,7 @@
              | combine(dict(tool_bins
                             | zip([tool_existing_version.stdout | default('unknown')]
                                   * (tool_bins | length)))) }}
-        sre_toolchain_skip: "{{ (sre_toolchain_skip | int) + 1 }}"
+        sre_toolchain_skipped: "{{ (sre_toolchain_skipped | int) + 1 }}"
 
 - name: "Install"
   when: not tool_skip
@@ -140,7 +140,13 @@
       ansible.builtin.include_tasks: verify_signature.yml
       vars:
         release_assets: "{{ tool_release.json.assets }}"
-      when: sre_toolchain_verify_signatures | bool
+      # Skip during the cosign bootstrap (cosign_bin not yet resolved) and
+      # for cosign itself — cosign is the root of trust, verified only by its
+      # own enforced SHA256, not self-signed verification.
+      when:
+        - sre_toolchain_verify_signatures | bool
+        - sre_toolchain_cosign_bin is defined
+        - tool_primary != 'cosign'
 
     - name: "Verify SHA256"
       ansible.builtin.include_tasks: verify_checksum.yml

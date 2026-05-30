@@ -68,9 +68,13 @@ lock out *all* interactive logins. This role enables faillock via
 `pam-auth-update` profiles (which survive later `pam-auth-update` runs) and
 **asserts** that `pam_faillock.so` is present in the generated stack, so a
 silent mis-wire fails the play rather than producing an unenforced or
-broken stack. The role is **not runtime-tested in CI** (no container); the
-`users` Molecule scenario (`roles/users/molecule/default/`) asserts the
-faillock lines land in `common-auth`/`common-account`.
+broken stack. The `users` Molecule scenario
+(`roles/users/molecule/default/`) runs in CI on a real Ubuntu 24.04
+container and **asserts** that `pam_faillock.so` lands in the generated
+`common-auth`/`common-account`. (The scenario was authored but not executed
+in the implementation sandbox, which had no Docker — so the first green run
+is the CI gate; validate on a lab host with break-glass access before a
+fleet rollout.)
 
 **Recovery (break-glass).** Keep a root console / cloud serial-console
 session, or a second already-authenticated session, open while applying

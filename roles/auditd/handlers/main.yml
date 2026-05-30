@@ -6,10 +6,14 @@
 # handlers below therefore avoid systemd for auditd and split the two
 # distinct change types:
 #
-#   - Audit RULES (rules.d) are (re)loaded with `augenrules --load`. When
-#     the ruleset is immutable (auditd_immutable -> `-e 2`), the running
-#     kernel refuses any further rule load until the next reboot, so the
-#     handler degrades to a no-op notice instead of failing the play.
+#   - Audit RULES (rules.d) are (re)loaded with `augenrules --load`. The
+#     decision to load is based on the RUNNING kernel state (`auditctl -s`
+#     enabled flag), not the auditd_immutable config var: on a first
+#     converge (or any host not yet locked) the kernel is still mutable and
+#     the new rules load immediately; only when the kernel is already locked
+#     (enabled 2) does the handler defer to a reboot notice. (Review: gating
+#     on the config var alone left rules unenforced until reboot even when
+#     they could have loaded now.)
 #   - Auditd DAEMON config (auditd.conf) is reloaded via the SysV init
 #     path (`service auditd restart`), which is permitted where systemctl
 #     is refused because it does not go through the systemd unit's
@@ -21,25 +25,21 @@
 # --- Audit rules (rules.d) -------------------------------------------------
 
 - name: Reload audit rules
-  ansible.builtin.command:
-    cmd: augenrules --load
-  register: auditd_augenrules
-  # augenrules exits non-zero only on a real load error here (the immutable
-  # case is handled by the separate reboot-notice handler below, gated on
-  # the same flag, so this handler never runs under immutability).
-  changed_when: "'No rules' not in (auditd_augenrules.stdout | default(''))"
-  failed_when: auditd_augenrules.rc != 0
+  ansible.builtin.shell: |
+    set -euo pipefail
+    enabled="$(auditctl -s 2>/dev/null | awk '/^enabled/ {print $2}')"
+    if [ "${enabled:-0}" = "2" ]; then
+      echo "AUDITD_LOCKED: kernel ruleset is immutable (enabled 2); the new"
+      echo "rules in /etc/audit/rules.d will load on the next reboot."
+      exit 0
+    fi
+    augenrules --load
+    echo "AUDITD_RULES_LOADED"
+  args:
+    executable: /bin/bash
+  register: auditd_rules_reload
+  changed_when: "'AUDITD_RULES_LOADED' in auditd_rules_reload.stdout"
   become: true
-  when: not auditd_immutable | bool
-
-- name: Notify that a reboot is required to load new audit rules
-  ansible.builtin.debug:
-    msg: >-
-      auditd is immutable (auditd_immutable=true, `-e 2`): the new audit
-      rules have been written to /etc/audit/rules.d but CANNOT be loaded
-      into the running kernel until this host is rebooted. Schedule a
-      reboot to activate the updated ruleset.
-  when: auditd_immutable | bool
 
 # --- Auditd daemon configuration (auditd.conf) -----------------------------
 
