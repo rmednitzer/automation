@@ -1,0 +1,109 @@
+---
+# USBGuard: USB device authorization (default-deny). Audit the USB attack
+# surface and (opt-in) enable the blocking daemon. POL-001.
+
+- name: Configure USBGuard
+  when: usbguard_enabled | bool
+  block:
+    # USB authorization is a host-hardware property: a container GUEST has no
+    # USB bus of its own and the daemon needs host /sys/bus/usb + uevent, so it
+    # skips entirely. A container/LXC *host* is managed normally.
+    - name: Determine whether to manage the USBGuard runtime
+      ansible.builtin.set_fact:
+        usbguard_runtime_managed: >-
+          {{ usbguard_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Validate the USBGuard policy targets
+      ansible.builtin.assert:
+        that:
+          - usbguard_implicit_policy_target in ['allow', 'block', 'reject']
+          - usbguard_present_device_policy in ['allow', 'block', 'reject', 'keep', 'apply-policy']
+          - usbguard_inserted_device_policy in ['allow', 'block', 'reject', 'apply-policy']
+        fail_msg: >-
+          Invalid USBGuard policy target (implicit={{ usbguard_implicit_policy_target }},
+          present={{ usbguard_present_device_policy }},
+          inserted={{ usbguard_inserted_device_policy }}).
+        quiet: true
+
+    - name: Install USBGuard
+      ansible.builtin.apt:
+        name: usbguard
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+      when: usbguard_runtime_managed | bool
+
+    # --- Audit (read-only) ----------------------------------------------------
+    # generate-policy reads sysfs (no daemon needed): one "allow" line per
+    # currently-connected device, so the count is the present USB attack surface.
+    - name: Count currently-connected USB devices
+      ansible.builtin.shell:
+        cmd: "set -o pipefail; usbguard generate-policy | grep -c '^allow' || true"
+        executable: /bin/bash
+      register: usbguard_device_count
+      changed_when: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_audit | bool
+
+    - name: Report the USBGuard posture (with -v)
+      ansible.builtin.debug:
+        msg: >-
+          USBGuard: enforcing={{ usbguard_enforce | bool }},
+          {{ usbguard_device_count.stdout | default('?') | trim }} USB device(s) currently connected.
+        verbosity: 1
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_audit | bool
+
+    # --- Opt-in enforcement ---------------------------------------------------
+    # Bootstrap the allow-list from the devices connected RIGHT NOW (incl. the
+    # console keyboard/mouse) so enabling the daemon does not lock them out.
+    # `creates` makes this one-time: the rule set is operator-managed afterwards.
+    - name: Bootstrap the USBGuard rule set from currently-connected devices
+      ansible.builtin.shell:
+        cmd: "usbguard generate-policy > {{ usbguard_rules_file }}"
+        creates: "{{ usbguard_rules_file }}"
+      become: true
+      changed_when: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    - name: Secure the USBGuard rule set
+      ansible.builtin.file:
+        path: "{{ usbguard_rules_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    - name: Deploy the USBGuard daemon configuration
+      ansible.builtin.template:
+        src: usbguard-daemon.conf.j2
+        dest: "{{ usbguard_daemon_conf }}"
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+      notify: Restart usbguard
+
+    - name: Enable and start the USBGuard daemon
+      ansible.builtin.systemd_service:
+        name: usbguard
+        enabled: true
+        state: started
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool

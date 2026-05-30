@@ -1,0 +1,15 @@
+---
+# usbguard handlers.
+
+# Restart the daemon to pick up daemon-config changes. Gated on enforcement
+# (and runtime_managed) — the daemon is only enabled when usbguard_enforce.
+# PresentDevicePolicy=keep means a restart does not deauthorise already-attached
+# devices, so this will not lock out the console.
+- name: Restart usbguard
+  ansible.builtin.systemd_service:
+    name: usbguard
+    state: restarted
+  become: true
+  when:
+    - usbguard_runtime_managed | default(false)
+    - usbguard_enforce | default(false)

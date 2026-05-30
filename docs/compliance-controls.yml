@@ -111,6 +111,7 @@ policies:
       - users
       - ufw
       - apparmor
+      - usbguard
 
   POL-002:
     title: "Incident response policy"

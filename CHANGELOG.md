@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `usbguard` role — USB device authorization (POL-001).**
+  Defense-in-depth part 3. Installs USBGuard and **audits** the USB attack
+  surface (count of connected devices via `usbguard generate-policy`,
+  read-only); **opt-in** (`usbguard_enforce`, default false) it bootstraps an
+  allow-list from currently-connected devices, deploys the daemon policy
+  (`ImplicitPolicyTarget=block`, `InsertedDevicePolicy=apply-policy`) and starts
+  the blocking daemon. Lock-out-aware: `PresentDevicePolicy`/`PresentController
+  Policy=keep` never deauthorise already-attached devices (console keyboard,
+  storage) — only **newly inserted** USB is filtered. Container-guest aware
+  (`usbguard_runtime_managed`; USB authz is host-hardware only). Added to
+  `site-common.yml` after `kernel_lockdown` and mapped to POL-001 in
+  `docs/compliance-controls.yml` (default-deny device access control). CRA
+  Annex I Part I, NIS2 Art 21.2(e), GDPR Art 5(1)(f) / Art 25,
+  ISO 27001:2022 A.8.3 / A.7.10.
+
 - 2026-05-30 **New `kernel_lockdown` role — kernel lockdown LSM (POL-004).**
   Defense-in-depth part 2. Audits the current lockdown level from
   `/sys/kernel/security/lockdown` (read-only) and, **opt-in**, sets
