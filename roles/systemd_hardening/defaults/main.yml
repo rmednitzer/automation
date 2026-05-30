@@ -1,0 +1,155 @@
+---
+# systemd service-hardening role defaults.
+#
+# Compliance references:
+#   - POL-004 — data classification & handling: per-service sandboxing keeps a
+#     service's data off shared tmp (PrivateTmp), out of home directories
+#     (ProtectHome) and off the rest of the filesystem (ProtectSystem=strict),
+#     and blocks W^X / SUID escalation. This is the same leak-prevention
+#     POL-004 demands of core dumps / swap / temp files, enforced at the
+#     service boundary (alongside the kernel/fs sysctl knobs in `common`).
+#   - CRA (EU 2024/2847) Annex I Part I — minimise the attack surface: drop
+#     capabilities, filter syscalls, restrict address families and namespaces.
+#   - NIS2 Art 21.2(e) — security in network and information systems
+#     (secure configuration, least privilege for running services).
+#   - GDPR Art 25 — data protection by design; Art 5(1)(f) — integrity and
+#     confidentiality of processing.
+#   - ISO 27001:2022 A.8.27 — secure system architecture & engineering
+#     principles.
+#
+# Targets Ubuntu 24.04 (systemd 255) and 26.04 (systemd 259). See docs/ADR-004.
+
+# Master switch. The role is SAFE-BY-DEFAULT: it ships vetted hardening
+# profiles and a read-only audit, but applies NO drop-in to any service unless
+# you opt that unit in via `systemd_hardening_units` (empty by default). A
+# fleet-wide run therefore only runs the read-only audit and changes nothing on
+# disk until a unit is assigned a profile.
+systemd_hardening_enabled: true
+
+# --- Rollout safety -----------------------------------------------------------
+
+# Manage the runtime (daemon-reload, unit restart, audit execution). Auto-off
+# in container GUESTS, where per-service sandboxing is the host systemd's job,
+# drop-ins may not apply and a restart can fail; the drop-in files are still
+# written (config-as-code). A container/LXC *host* is managed normally — same
+# `ansible_virtualization_role == 'guest'` check as the auditd / dns roles.
+systemd_hardening_manage_runtime: true
+
+# Restart a unit immediately when its hardening drop-in changes. Default FALSE:
+# on a live fleet you usually want the drop-in staged and activated on the
+# unit's next natural restart/reboot, not a service bounced mid-run. A
+# daemon-reload still runs so `systemctl show <unit>` reflects the drop-in;
+# the sandbox takes effect on the next start. Flip to true globally here, or
+# per unit (`restart: true`), once validated in staging.
+systemd_hardening_restart_on_change: false
+
+# --- Hardening profiles (vetted, reusable directive bundles) ------------------
+# A profile is a name -> { Directive: value } map rendered into the [Service]
+# section of a unit drop-in. Assign one to a unit in `systemd_hardening_units`
+# and extend/override individual directives there. These two profiles are
+# conservative and broadly safe for system daemons, but ALWAYS validate against
+# the specific service: a few directives break specific daemons — e.g.
+# ProtectClock breaks time daemons (chrony), MemoryDenyWriteExecute breaks
+# JIT/interpreter services, ProtectSystem=strict needs ReadWritePaths for a
+# daemon that writes state. See the role README for per-service notes.
+systemd_hardening_profiles:
+  # Local daemon that does NOT need the network. Strongest profile: only AF_UNIX
+  # sockets, all capabilities dropped, W^X enforced.
+  local_daemon:
+    NoNewPrivileges: "yes"
+    ProtectSystem: "strict"
+    ProtectHome: "yes"
+    PrivateTmp: "yes"
+    PrivateDevices: "yes"
+    ProtectKernelTunables: "yes"
+    ProtectKernelModules: "yes"
+    ProtectKernelLogs: "yes"
+    ProtectControlGroups: "yes"
+    ProtectClock: "yes"
+    ProtectHostname: "yes"
+    ProtectProc: "invisible"
+    RestrictAddressFamilies: "AF_UNIX"
+    RestrictNamespaces: "yes"
+    RestrictRealtime: "yes"
+    RestrictSUIDSGID: "yes"
+    LockPersonality: "yes"
+    MemoryDenyWriteExecute: "yes"
+    SystemCallArchitectures: "native"
+    SystemCallFilter: "@system-service"
+    CapabilityBoundingSet: ""
+    UMask: "0077"
+  # Network-facing daemon: as local_daemon but allows IP sockets. Capabilities
+  # and MemoryDenyWriteExecute are intentionally LEFT OUT (many network daemons
+  # need CAP_NET_* and/or a JIT) — restrict those per unit via `overrides`.
+  network_daemon:
+    NoNewPrivileges: "yes"
+    ProtectSystem: "strict"
+    ProtectHome: "yes"
+    PrivateTmp: "yes"
+    PrivateDevices: "yes"
+    ProtectKernelTunables: "yes"
+    ProtectKernelModules: "yes"
+    ProtectKernelLogs: "yes"
+    ProtectControlGroups: "yes"
+    ProtectClock: "yes"
+    ProtectHostname: "yes"
+    ProtectProc: "invisible"
+    RestrictAddressFamilies: "AF_UNIX AF_INET AF_INET6"
+    RestrictNamespaces: "yes"
+    RestrictRealtime: "yes"
+    RestrictSUIDSGID: "yes"
+    LockPersonality: "yes"
+    SystemCallArchitectures: "native"
+    SystemCallFilter: "@system-service"
+    UMask: "0077"
+
+# --- Units to harden (OPT-IN) -------------------------------------------------
+# Map of unit -> assignment. EMPTY by default (nothing is applied fleet-wide).
+# Each assignment:
+#   profile:   name from systemd_hardening_profiles (optional if overrides set)
+#   overrides: directive -> value map merged over (and replacing) the profile
+#   restart:   per-unit override of systemd_hardening_restart_on_change
+#   unit:      full unit name if not "<key>.service" (e.g. "foo.socket")
+# The key is the service name; "<key>.service" is assumed unless `unit` is set.
+#
+# Worked examples (commented — copy into group_vars and validate in staging):
+#
+#   systemd_hardening_units:
+#     fail2ban:
+#       profile: network_daemon
+#       overrides:
+#         # fail2ban edits nftables/iptables -> needs netlink + the net caps,
+#         # and writes its db/socket -> ReadWritePaths.
+#         RestrictAddressFamilies: "AF_UNIX AF_INET AF_INET6 AF_NETLINK"
+#         CapabilityBoundingSet: "CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_READ_SEARCH"
+#         ReadWritePaths: "/var/lib/fail2ban /run/fail2ban"
+#     chrony:
+#       profile: network_daemon
+#       restart: true
+#       overrides:
+#         # chrony steers the system clock -> must NOT ProtectClock, needs
+#         # CAP_SYS_TIME, and writes drift/state.
+#         ProtectClock: "no"
+#         CapabilityBoundingSet: "CAP_SYS_TIME"
+#         ReadWritePaths: "/var/lib/chrony /run/chrony"
+systemd_hardening_units: {}
+
+# --- Audit (read-only) --------------------------------------------------------
+# Run `systemd-analyze security` to report each unit's exposure score. Purely
+# read-only (changed_when:false) and safe fleet-wide; off in container guests
+# (no full systemd/dbus). Surfaces a hardening baseline and feeds an
+# AI-assisted hardening review (see the AI-native series).
+systemd_hardening_audit: true
+# Units to audit — the running services this repo manages, so the report is
+# actionable. Units with no unit file on a given host are skipped, not failed.
+systemd_hardening_audit_units:
+  - ssh
+  - chrony
+  - fail2ban
+  - systemd-resolved
+  - systemd-journald
+  - auditd
+# Optional gate: fail the audit when a unit's exposure exceeds this score
+# (0.0 = fully sandboxed, 10.0 = wide open). EMPTY = report only, never fail.
+# Set e.g. "9.5" in staging/CI to flag egregiously exposed units.
+systemd_hardening_audit_threshold: ""

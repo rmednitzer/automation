@@ -1,0 +1,26 @@
+---
+# systemd_hardening handlers. Defined reload-before-restart: handlers run in
+# definition order, and systemd must re-read the drop-in before a restart picks
+# it up. Both are skipped in container guests (systemd_hardening_runtime_managed,
+# set in tasks/main.yml) — the drop-in is written but there is nothing to manage.
+
+- name: Reload systemd manager configuration
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  become: true
+  when: systemd_hardening_runtime_managed | default(false)
+
+# Restart only units whose effective restart flag is true (per-unit `restart:`
+# overrides the global systemd_hardening_restart_on_change). Fires once when any
+# drop-in changes; with restart disabled (the default) the loop selects nothing.
+- name: Restart hardened units
+  ansible.builtin.systemd_service:
+    name: "{{ item.value.unit | default(item.key ~ '.service') }}"
+    state: restarted
+  become: true
+  loop: "{{ systemd_hardening_units | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when:
+    - systemd_hardening_runtime_managed | default(false)
+    - item.value.restart | default(systemd_hardening_restart_on_change) | bool

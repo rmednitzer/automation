@@ -111,3 +111,13 @@
         - hids
         - security
         - compliance
+    # Capstone hardening pass: per-service systemd sandboxing (drop-ins) plus a
+    # read-only systemd-analyze security audit. Runs last so the audit sees
+    # every service installed above. Safe-by-default — audit-only until a unit
+    # is opted into systemd_hardening_units, so the baseline run is unaffected.
+    - role: systemd_hardening
+      tags:
+        - systemd-hardening
+        - hardening
+        - security
+        - compliance

@@ -9,6 +9,23 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `systemd_hardening` role — per-service sandboxing + audit
+  (POL-004).** Confines services with systemd unit drop-ins
+  (`/etc/systemd/system/<unit>.d/10-hardening.conf`) built from two vetted
+  profiles (`local_daemon`, `network_daemon`: `NoNewPrivileges`,
+  `ProtectSystem=strict`, `PrivateTmp`, `ProtectKernel*`,
+  `RestrictAddressFamilies`, `SystemCallFilter=@system-service`,
+  `CapabilityBoundingSet`, …), plus a read-only `systemd-analyze security`
+  exposure audit (optional staging/CI threshold gate). **Safe-by-default:**
+  `systemd_hardening_units` is empty, so a baseline run only audits and changes
+  nothing until a unit is opted in; `systemd_hardening_restart_on_change` is
+  `false`, so a changed drop-in is staged (daemon-reload) and activated on the
+  unit's next restart rather than bouncing a live service. Container-guest
+  aware (`systemd_hardening_runtime_managed`). Added to `site-common.yml` as
+  the capstone role (runs last) and mapped to POL-004 in
+  `docs/compliance-controls.yml`. CRA Annex I Part I, NIS2 Art 21.2(e),
+  GDPR Art 25 / Art 5(1)(f), ISO 27001:2022 A.8.27.
+
 - 2026-05-30 **New `wazuh_agent` role — HIDS/FIM endpoint (CTL-002, POL-002).**
   Installs and enrols the Wazuh agent (host intrusion detection, file integrity
   monitoring, rootcheck) against a Wazuh manager. Adds the Wazuh 4.x APT repo
