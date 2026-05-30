@@ -14,8 +14,10 @@ SSH server hardening for Ubuntu 24.04 LTS.
 - Selects BSI TR-02102-4 / Mozilla-modern aligned KEX, ciphers, MACs,
   and host-key algorithms (POL-003 — no SHA-1, no CBC, Ed25519
   preferred)
-- Configures session timeouts, max auth attempts; disables agent /
-  X11 / TCP forwarding by default
+- Configures session timeouts, max auth attempts, and `MaxStartups`
+  connection throttling (CIS §5); binds to `ssh_listen_addresses`
+  (all interfaces by default); disables agent / X11 / TCP forwarding by
+  default
 - Deploys a legal monitoring banner (GDPR Art 5(2), NIS2 Art 21.2(a))
 - Optionally restricts access to specific users / groups
   (`AllowUsers` / `AllowGroups`)
@@ -32,6 +34,8 @@ SSH server hardening for Ubuntu 24.04 LTS.
 | `ssh_challenge_response_authentication` | `false` | Allow keyboard-interactive |
 | `ssh_max_auth_tries` | `3` | Max auth attempts per connection |
 | `ssh_max_sessions` | `3` | Max concurrent sessions per connection |
+| `ssh_max_startups` | `"10:30:60"` | `MaxStartups` unauthenticated-connection throttle (CIS §5) |
+| `ssh_listen_addresses` | list — `["0.0.0.0", "::"]` | `ListenAddress` entries (default all interfaces) |
 | `ssh_login_grace_time` | `20` | Seconds to authenticate before disconnect |
 | `ssh_client_alive_interval` | `300` | Idle keepalive interval (seconds) |
 | `ssh_client_alive_count_max` | `2` | Idle keepalives before disconnect |

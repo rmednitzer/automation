@@ -23,7 +23,12 @@ controls:
     description: >
       Identity and access management controls requiring multi-factor
       authentication, least-privilege authorization, and full auditability
-      of access grants and revocations.
+      of access grants and revocations. Within this repository the technical
+      controls deliver key-only SSH authentication, least-privilege sudo, and
+      pam_faillock account lockout; multi-factor authentication itself is
+      provided by the federated identity provider (IdP) and is out of scope
+      for these host-level Ansible roles (L8). The roles below discharge the
+      authorization, lockout, and auditability portions of this control.
     regulatory_mapping:
       - "NIS2 Art 21.2(i) — human resources security and access control"
       - "GDPR Art 32 — security of processing"
@@ -56,6 +61,7 @@ controls:
       - aide
       - log_forwarding
       - common
+      - sre_toolchain
 
   CTL-003:
     title: "Logging legality, minimisation, and forensic correlation"
@@ -116,6 +122,7 @@ policies:
       - rkhunter
       - ntp
       - log_forwarding
+      - sre_toolchain
 
   POL-003:
     title: "Cryptography policy"

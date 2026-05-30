@@ -14,6 +14,12 @@
     path: /etc/default/ufw
     regexp: "^IPV6="
     line: "IPV6={{ ufw_ipv6 | ternary('yes', 'no') }}"
+    # /etc/default/ufw is shipped by the ufw package, but create defensively
+    # so the edit never fails on an unusual image. (L3)
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
   become: true
 
 - name: Reset UFW to defaults

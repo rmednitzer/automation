@@ -19,12 +19,18 @@ ratified; consumers that strictly validate purl types should pre-process.
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import sys
+import uuid
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COLLECTIONS_ROOT = REPO_ROOT / "collections" / "ansible_collections"
+
+# Tool version reported in the SBOM metadata. Bump when the generator's
+# output format changes so consumers can distinguish SBOM schemas.
+TOOL_VERSION = "1.1.0"
 
 
 def discover_components() -> list[dict]:
@@ -71,6 +77,18 @@ def discover_components() -> list[dict]:
     return components
 
 
+def _serial_number(components: list[dict]) -> str:
+    """Return a deterministic urn:uuid BOM serial number.
+
+    Derived (uuid5) from the resolved component purls so the same installed
+    collection set always yields the same serialNumber — reproducible
+    supply-chain evidence rather than a random identifier per invocation.
+    """
+    purls = "\n".join(sorted(c.get("purl", c["name"]) for c in components))
+    digest = hashlib.sha256(purls.encode("utf-8")).hexdigest()
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, digest)}"
+
+
 def build_sbom(components: list[dict]) -> dict:
     """Wrap the components in a CycloneDX 1.6 envelope."""
     timestamp = (
@@ -82,6 +100,7 @@ def build_sbom(components: list[dict]) -> dict:
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
+        "serialNumber": _serial_number(components),
         "version": 1,
         "metadata": {
             "timestamp": timestamp,
@@ -89,7 +108,7 @@ def build_sbom(components: list[dict]) -> dict:
                 {
                     "vendor": "automation",
                     "name": "galaxy-sbom.py",
-                    "version": "1",
+                    "version": TOOL_VERSION,
                 }
             ],
             "component": {

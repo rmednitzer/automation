@@ -150,11 +150,17 @@ Secrets live in `ansible-vault` encrypted files, never in plaintext.
 
 ### File and variable naming
 
-- Vault-encrypted files use the `vault_` prefix:
+- Vault-encrypted files are named `vault.yml`:
   `inventories/<env>/group_vars/vault.yml`,
-  `inventories/<env>/host_vars/<host>/vault.yml`.
-  `.gitignore` allows tracked files matching `vault_*.yml`; the prefix
-  signals "encrypted at rest" to reviewers and to file-scanning tools.
+  `inventories/<env>/host_vars/<host>/vault.yml`. These files are
+  committed, but only in `ansible-vault`-encrypted form. The
+  `ansible-vault-encrypted` pre-commit hook
+  (`scripts/check-vault-encrypted.sh`) refuses any `vault.yml` whose first
+  line is not the `$ANSIBLE_VAULT` header, so a plaintext secrets file
+  cannot be committed by accident. Plaintext `vault.yml.example` templates
+  are placeholders and are committed as-is.
+  The reviewer signal is the `vault_` prefix on the *variables* (below),
+  not the filename.
 - Variables inside vault files use a `vault_` prefix
   (`vault_smtp_password`, `vault_sre_toolchain_github_token`). A
   non-vault file in the same `group_vars/` references them by aliasing:

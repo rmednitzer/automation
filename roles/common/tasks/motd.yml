@@ -16,5 +16,11 @@
     path: /etc/default/motd-news
     regexp: "^ENABLED="
     line: "ENABLED=0"
+    # motd-news may be absent (e.g. minimal images); create so the directive
+    # is enforced regardless. (L3)
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
   become: true
   when: common_motd_enabled

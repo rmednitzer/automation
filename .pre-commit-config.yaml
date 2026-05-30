@@ -45,3 +45,16 @@ repos:
     rev: v8.30.1
     hooks:
       - id: gitleaks
+
+  # Guard the vault convention (H5): any file named `vault.yml` (the
+  # encrypted-secrets filename per CLAUDE.md) must be ansible-vault
+  # encrypted — i.e. start with the `$ANSIBLE_VAULT` header. `.example`
+  # placeholders are excluded. This makes it impossible to silently commit
+  # a plaintext secrets file.
+  - repo: local
+    hooks:
+      - id: ansible-vault-encrypted
+        name: ansible-vault encrypted vault.yml
+        entry: scripts/check-vault-encrypted.sh
+        language: script
+        files: (^|/)vault\.yml$

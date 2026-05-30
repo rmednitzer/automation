@@ -74,6 +74,10 @@ common_sysctl_settings:
   net.ipv4.conf.default.accept_redirects: 0
   net.ipv4.conf.all.send_redirects: 0
   net.ipv4.conf.default.send_redirects: 0
+  # Ignore ICMP redirects even from gateways (CIS 3.3.x secure_redirects).
+  # Override on hosts that legitimately need them.
+  net.ipv4.conf.all.secure_redirects: 0
+  net.ipv4.conf.default.secure_redirects: 0
   net.ipv4.conf.all.accept_source_route: 0
   net.ipv4.conf.default.accept_source_route: 0
   net.ipv4.icmp_echo_ignore_broadcasts: 1
@@ -81,6 +85,10 @@ common_sysctl_settings:
   net.ipv4.conf.all.log_martians: 1
   net.ipv4.conf.default.log_martians: 1
   net.ipv4.tcp_syncookies: 1
+  # Disable IP forwarding (CIS 3.1.x — host is not a router). Routers/NAT
+  # gateways must override these two to 1.
+  net.ipv4.ip_forward: 0
+  net.ipv6.conf.all.forwarding: 0
   # IPv6 hardening
   net.ipv6.conf.all.accept_redirects: 0
   net.ipv6.conf.default.accept_redirects: 0
@@ -100,6 +108,14 @@ common_sysctl_settings:
   # Protect hardlinks/symlinks
   fs.protected_hardlinks: 1
   fs.protected_symlinks: 1
+  # Additional kernel hardening (CIS-aligned). Overridable — disable on
+  # hosts that legitimately need kexec (live-patching) or perf profiling.
+  # Block kexec so a new kernel cannot be loaded at runtime (CIS 1.5.x).
+  kernel.kexec_load_disabled: 1
+  # Do not auto-load line disciplines on demand (CIS 1.5.x — TTY hijack).
+  dev.tty.ldisc_autoload: 0
+  # Restrict perf_event_open to privileged users (CIS — side-channel risk).
+  kernel.perf_event_paranoid: 2
 
 # Systemd journal max size
 # CTL-003 — retention per log category
