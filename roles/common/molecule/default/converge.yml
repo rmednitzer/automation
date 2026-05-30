@@ -1,0 +1,9 @@
+---
+# Converge: apply the common role to the molecule container.
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Include the common role
+      ansible.builtin.include_role:
+        name: common

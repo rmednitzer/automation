@@ -60,6 +60,16 @@ common_auto_updates_reboot_time: "02:00"
 # NIS2 Art 21.2(e) — network security
 # CRA Annex I Part I — protection of attack surface
 # GDPR Art 5(1)(c) — data minimisation (IPv6 privacy)
+#
+# This is the ALWAYS-PRESENT set: every key here exists on a stock Ubuntu
+# 24.04 (kernel 6.8) and 26.04 (kernel 7.0) host. The application path
+# (tasks/sysctl.yml) still probes each key's /proc/sys path defensively and
+# skips any that are missing, so a stripped-down container or a future
+# CONFIG change that compiles a knob out degrades to a no-op for that key
+# instead of failing the run. Knobs that are commonly compiled out (e.g.
+# net.core.bpf_jit_harden without CONFIG_BPF_JIT, vm.unprivileged_userfaultfd
+# without CONFIG_USERFAULTFD) live in common_sysctl_settings_optional below,
+# not here.
 common_sysctl_settings:
   # Network performance
   net.core.rmem_max: 16777216
@@ -108,6 +118,12 @@ common_sysctl_settings:
   # Protect hardlinks/symlinks
   fs.protected_hardlinks: 1
   fs.protected_symlinks: 1
+  # Protect against file-creation races in world-writable sticky dirs.
+  # KSPP recommends fs.protected_fifos=2 / fs.protected_regular=2 (apply to
+  # both group- and other-writable sticky dirs). Present since kernel 4.19,
+  # so safe on both 24.04 (6.8) and 26.04 (7.0). KSPP Recommended_Settings.
+  fs.protected_fifos: 2
+  fs.protected_regular: 2
   # Additional kernel hardening (CIS-aligned). Overridable — disable on
   # hosts that legitimately need kexec (live-patching) or perf profiling.
   # Block kexec so a new kernel cannot be loaded at runtime (CIS 1.5.x).
@@ -117,6 +133,44 @@ common_sysctl_settings:
   # Restrict perf_event_open to privileged users (CIS — side-channel risk).
   kernel.perf_event_paranoid: 2
 
+# Kernel-/config-dependent sysctls. These knobs may be ABSENT depending on
+# the kernel's compile-time config or the (container) namespace, so they are
+# applied only when their /proc/sys path exists, and — critically — a key
+# whose path is absent is NOT written to the drop-in at all (see
+# tasks/sysctl.yml). That keeps the persisted /etc/sysctl.d/90-ansible.conf
+# free of stale keys, so a host that loses a knob on a kernel change still
+# converges cleanly and the `reload: true` never trips over a missing key.
+# This keeps the role idempotent across the 24.04 (kernel 6.8) / 26.04
+# (kernel 7.0) matrix without weakening either: where a knob is missing it is
+# skipped, where it is present it is enforced. Override values here; set a
+# key's value to the kernel default to effectively disable enforcement.
+common_sysctl_settings_optional:
+  # Harden the eBPF JIT against heap-spray / branch-predictor attacks (KSPP +
+  # CIS Ubuntu 24.04 §1). Requires CONFIG_BPF_JIT; the /proc path is absent
+  # when the JIT is compiled out and is commonly missing/namespaced inside
+  # containers, so it is path-gated rather than unconditional. Overridable.
+  net.core.bpf_jit_harden: 2
+  # Disable unprivileged userfaultfd — a recurring use-after-free LPE
+  # primitive (KSPP). Requires CONFIG_USERFAULTFD; hardened/stripped kernels
+  # compile it out, in which case the /proc path is absent and the primitive
+  # is already unavailable, so this is a no-op there. Path-gated.
+  vm.unprivileged_userfaultfd: 0
+  # Restrict io_uring, a prominent local-privilege-escalation attack surface
+  # in recent kernels. 0=unrestricted (kernel default), 1=disabled for
+  # unprivileged processes outside kernel.io_uring_group, 2=disabled for all.
+  # The sysctl exists on kernel >= 6.6 (both 6.8 and 7.0 have it) but is
+  # gated defensively. Default 1 (block unprivileged use) — CIS Ubuntu 24.04
+  # §1 io_uring lockdown. Hosts whose workloads need io_uring must override
+  # to 0. Ref: kernel.io_uring_disabled (Documentation/admin-guide/sysctl).
+  kernel.io_uring_disabled: 1
+  # Block legacy TIOCSTI terminal-injection (CVE class: command injection
+  # into a parent shell). The sysctl ONLY exists when the kernel is built
+  # with CONFIG_LEGACY_TIOCSTI=y; hardened kernels compile it out, in which
+  # case TIOCSTI is already disabled and this key's /proc path is absent.
+  # KSPP recommends dev.tty.legacy_tiocsti=0. Path-gated so it is a no-op on
+  # kernels that lack the knob (TIOCSTI already off there).
+  dev.tty.legacy_tiocsti: 0
+
 # Systemd journal max size
 # CTL-003 — retention per log category
 common_journal_max_size: "500M"
@@ -124,6 +178,43 @@ common_journal_max_retention: "6month"
 
 # MOTD banner
 common_motd_enabled: true
+
+# Core kernel-hardening sysctls applied by tasks/kernel_hardening.yml.
+# Broken out as overridable variables (previously hardcoded in the task) so
+# operators can tune them per host without editing tasks — defaults are
+# unchanged (no weakening). Values are KSPP / CIS Ubuntu 24.04 §1 aligned
+# and present on both kernel 6.8 (24.04) and 7.0 (26.04).
+#   kptr_restrict=2          hide kernel pointers from all users (KSPP)
+#   dmesg_restrict=1         restrict dmesg to CAP_SYSLOG (KSPP, CIS 1.5.x)
+#   unprivileged_bpf=1       no unprivileged bpf() syscall (KSPP, CIS)
+#   randomize_va_space=2     full ASLR (KSPP)
+#   ptrace_scope=2           admin-only ptrace (CIS Ubuntu 24.04; KSPP=3).
+#                            Kept at 2 (not 3) so privileged debuggers still
+#                            work; raise to 3 for the strictest posture, or
+#                            lower to 1 on hosts that debug across processes.
+common_kernel_kptr_restrict: 2
+common_kernel_dmesg_restrict: 1
+common_kernel_unprivileged_bpf_disabled: 1
+common_kernel_randomize_va_space: 2
+common_kernel_ptrace_scope: 2
+
+# The sysctl keys applied by tasks/kernel_hardening.yml (it writes them
+# individually, with per-key when/failed_when, into the SAME drop-in as
+# tasks/sysctl.yml). Listed here as data so sysctl.yml can treat the role's
+# managed-key set as the UNION of the two sysctl maps above and these keys, and
+# prune anything else from /etc/sysctl.d/90-ansible.conf. This is the single
+# source of truth for "what the role manages in that file"; a key removed from
+# the role entirely (dropped from the maps OR from kernel_hardening.yml) is then
+# pruned instead of leaving a stale line that could break the whole-file reload.
+# KEEP IN SYNC with the `ansible.posix.sysctl` names in tasks/kernel_hardening.yml.
+common_kernel_hardening_sysctl_keys:
+  - fs.suid_dumpable
+  - kernel.randomize_va_space
+  - kernel.kptr_restrict
+  - kernel.dmesg_restrict
+  - kernel.unprivileged_bpf_disabled
+  - kernel.unprivileged_userns_clone
+  - kernel.yama.ptrace_scope
 
 # Kernel module blacklist (disable unnecessary/risky modules)
 # CRA Annex I Part I — minimal attack surface

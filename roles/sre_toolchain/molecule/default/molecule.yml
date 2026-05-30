@@ -1,0 +1,99 @@
+---
+# Molecule scenario for the `sre_toolchain` role (LIMITATIONS.md L5).
+#
+# NOTE: requires Docker, unavailable in the current CI sandbox, so this
+# scenario is authored and YAML/lint-validated but has NOT been executed
+# here. It also needs NETWORK EGRESS to the GitHub API + release CDN. Run
+# on a Docker-enabled host with outbound HTTPS:
+#
+#   pip install molecule molecule-plugins[docker] docker
+#   export SRE_TOOLCHAIN_GITHUB_TOKEN=ghp_xxx   # avoids 60-req/hour limit
+#   cd roles/sre_toolchain && molecule test
+#
+# SCOPE: to keep the run light and deterministic, the catalogue is reduced
+# to TWO tools via sre_toolchain_skip (the role's documented per-tool
+# exclude). The two are chosen to exercise both install paths and the
+# checksum path:
+#   - opa         type=binary, ships a per-asset *.sha256  -> binary + per-asset checksum
+#   - kubeconform type=archive, ships a SHA256SUMS bundle  -> extract + bundle checksum
+# Both publish real upstream SHA256s, so the default strict checksum policy
+# is enforced end-to-end (a mismatch would abort — that IS the test).
+#
+# SIGNATURE PATH UNRUN: cosign is not installed here and
+# sre_toolchain_verify_signatures stays false (the default), so verify.yml
+# only asserts the manifest records verify_signatures=false and
+# signature='not_checked'. The cosign verify-blob path (verify_signature.yml)
+# is authored but cannot be exercised without cosign + a signed bundle.
+#
+# Dual-OS (ADR-004): noble + resolute. The role has no OS-version branch, so
+# the second box mainly confirms egress/install on 26.04; drop it to halve
+# egress when iterating.
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: sre-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: sre-resolute
+    image: geerlingguy/docker-ubuntu2604-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: profile_tasks
+  inventory:
+    group_vars:
+      all:
+        # Reduce the catalogue to opa + kubeconform. Everything else
+        # (and the special-cased kubectx) is excluded. 'age' is the skip
+        # key for the [age, age-keygen] entry (the role keys on the first
+        # binary name).
+        sre_toolchain_skip:
+          - kind
+          - kustomize
+          - stern
+          - flux
+          - trivy
+          - syft
+          - cosign
+          - sops
+          - age
+          - conftest
+          - k6
+          - kube-score
+          - kube-linter
+          - dive
+          - kubectx
+        # Pass a token through from the host environment if present so the
+        # GitHub API does not rate-limit. Empty is tolerated (the role warns
+        # and proceeds; two tools fit inside the unauthenticated budget).
+        sre_toolchain_github_token: "{{ lookup('ansible.builtin.env', 'SRE_TOOLCHAIN_GITHUB_TOKEN', default='') }}"
+        # Default checksum policy (strict) is exercised as-is; signatures off.
+        sre_toolchain_verify_signatures: false
+
+verifier:
+  name: ansible

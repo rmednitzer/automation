@@ -1,6 +1,6 @@
 # `ssh_hardening` role
 
-SSH server hardening for Ubuntu 24.04 LTS.
+SSH server hardening for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 
@@ -52,3 +52,12 @@ SSH server hardening for Ubuntu 24.04 LTS.
 | `ssh_allowed_groups` | `[]` | If set, render `AllowGroups` |
 
 Full list in `defaults/main.yml`.
+
+## Testing
+
+A Molecule scenario (`molecule/default/`) converges the role on Ubuntu
+24.04 and 26.04 (ADR-004) and asserts `sshd -t` passes, the effective
+config disables root / password / empty-password login, and no weak
+(SHA-1 / group1 KEX, CBC / RC4 ciphers, MD5 / SHA-1 MACs) crypto is
+enabled. Run `make molecule` on a Docker host (unrun in the authoring
+sandbox — see `LIMITATIONS.md` L2/L3).

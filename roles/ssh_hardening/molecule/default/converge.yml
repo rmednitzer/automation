@@ -1,0 +1,9 @@
+---
+# Converge: apply the ssh_hardening role to the molecule container.
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Include the ssh_hardening role
+      ansible.builtin.include_role:
+        name: ssh_hardening

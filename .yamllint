@@ -31,3 +31,8 @@ ignore:
   - collections/
   - .venv/
   - venv/
+  # ansible-vault-encrypted secrets files are named `vault.yml` (CLAUDE.md
+  # "Secrets management"). Their ciphertext is not YAML, so exclude them from
+  # YAML linting. The plaintext `vault.yml.example` templates are NOT named
+  # `vault.yml` and remain linted.
+  - "**/vault.yml"

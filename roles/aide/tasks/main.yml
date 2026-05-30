@@ -1,5 +1,5 @@
 ---
-# AIDE file integrity monitoring role for Ubuntu 24.04 LTS
+# AIDE file integrity monitoring role for Ubuntu 24.04/26.04 LTS
 # NIS2 Art 21.2(a), GDPR Art 32, POL-002, CTL-002
 
 - name: Install AIDE

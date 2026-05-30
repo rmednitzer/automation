@@ -2,13 +2,14 @@
 galaxy_info:
   role_name: rkhunter
   author: automation
-  description: Rootkit detection via rkhunter for Ubuntu 24.04 LTS
+  description: Rootkit detection via rkhunter for Ubuntu 24.04 and 26.04 LTS
   license: Apache-2.0
   min_ansible_version: "2.18"
   platforms:
     - name: Ubuntu
       versions:
-        - noble
+        - noble      # 24.04 LTS
+        - resolute   # 26.04 LTS (kernel 7.0) — see docs/ADR-004
   galaxy_tags:
     - rkhunter
     - security

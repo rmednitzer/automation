@@ -1,5 +1,5 @@
 ---
-# Common role - Base system management for Ubuntu 24.04 LTS
+# Common role - Base system management for Ubuntu 24.04/26.04 LTS
 
 - name: Include package management tasks
   ansible.builtin.import_tasks: packages.yml

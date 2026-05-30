@@ -1,5 +1,13 @@
 ---
 # Kernel hardening tasks
+#
+# The `ansible.posix.sysctl` tasks below write into the SAME drop-in as
+# tasks/sysctl.yml (/etc/sysctl.d/90-ansible.conf). sysctl.yml owns the file
+# and prunes any key not in the role's managed set, so the sysctl key names
+# applied here are enumerated in defaults as common_kernel_hardening_sysctl_keys
+# for that prune. KEEP THAT LIST IN SYNC: if you add/remove a sysctl key here,
+# update common_kernel_hardening_sysctl_keys too, or sysctl.yml will prune the
+# new key (or fail to prune a removed one).
 
 - name: Blacklist unnecessary kernel modules
   ansible.builtin.copy:
@@ -48,7 +56,7 @@
 - name: Ensure ASLR is enabled
   ansible.posix.sysctl:
     name: kernel.randomize_va_space
-    value: "2"
+    value: "{{ common_kernel_randomize_va_space | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
@@ -57,7 +65,7 @@
 - name: Restrict kernel pointer exposure
   ansible.posix.sysctl:
     name: kernel.kptr_restrict
-    value: "2"
+    value: "{{ common_kernel_kptr_restrict | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
@@ -66,7 +74,7 @@
 - name: Restrict dmesg access to root
   ansible.posix.sysctl:
     name: kernel.dmesg_restrict
-    value: "1"
+    value: "{{ common_kernel_dmesg_restrict | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
@@ -75,12 +83,17 @@
 - name: Restrict unprivileged BPF
   ansible.posix.sysctl:
     name: kernel.unprivileged_bpf_disabled
-    value: "1"
+    value: "{{ common_kernel_unprivileged_bpf_disabled | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
   become: true
 
+# kernel.unprivileged_userns_clone is a Debian/Ubuntu-only sysctl; mainline
+# kernels expose user.max_user_namespaces instead. On kernel 7.0 (26.04)
+# Ubuntu still carries the downstream knob, but keep failed_when:false so the
+# role does not abort if a future kernel drops it. Unprivileged user
+# namespaces remain a notable LPE surface (KSPP).
 - name: Restrict unprivileged user namespaces
   ansible.posix.sysctl:
     name: kernel.unprivileged_userns_clone
@@ -94,7 +107,7 @@
 - name: Restrict ptrace scope
   ansible.posix.sysctl:
     name: kernel.yama.ptrace_scope
-    value: "2"
+    value: "{{ common_kernel_ptrace_scope | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present

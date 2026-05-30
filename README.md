@@ -27,6 +27,10 @@ to the regulatory frameworks above.
 
 ### Prerequisites
 
+- **Target OS:** Ubuntu 24.04 LTS (Noble) and Ubuntu 26.04 LTS (Resolute,
+  kernel 7.0). No official CIS 26.04 benchmark exists yet, so the 26.04
+  baseline is "CIS 24.04 + kernel-7.0/KSPP delta"
+  ([ADR-004](docs/ADR-004-ubuntu-2604-dual-support.md)).
 - [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) ≥ 2.18 (`community.general` 13.x requires `ansible-core` ≥ 2.18)
 - Python ≥ 3.10
 
@@ -126,6 +130,7 @@ lint rules). Each pass produces an ADR under [`docs/`](docs/):
 | [ADR-001](docs/ADR-001-code-validation-baseline.md) | 2026-05-24 | Code validation baseline — index, findings, accepted design tensions, doc-parity policy |
 | [ADR-002](docs/ADR-002-sre-toolchain-supply-chain.md) | 2026-05-30 | `sre_toolchain` supply-chain hardening — strict checksum default, optional cosign signatures, optional tag pinning, evidence manifest |
 | [ADR-003](docs/ADR-003-runtime-correctness-and-cis-baseline.md) | 2026-05-30 | Runtime-correctness fixes (auditd restart, role order, fail2ban/rsyslog) and CIS baseline extension; pam_faillock via pam-config profiles |
+| [ADR-004](docs/ADR-004-ubuntu-2604-dual-support.md) | 2026-05-30 | Ubuntu 24.04 + 26.04 (kernel 7.0) dual-support; interim "CIS 24.04 + KSPP/kernel-7.0 delta" benchmark stance; kernel-7.0 sysctl review |
 
 Static analysis is enforced on every push and pull request by
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml):

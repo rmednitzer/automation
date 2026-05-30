@@ -1,0 +1,76 @@
+---
+# Molecule scenario for the `common` role.
+#
+# NOTE: requires Docker, unavailable in the current CI sandbox, so this
+# scenario is authored and YAML/lint-validated but has NOT been executed
+# here (LIMITATIONS.md L2/L3). Run on a Docker-enabled host:
+#
+#   pip install molecule molecule-plugins[docker] docker
+#   cd roles/common && molecule test
+#
+# CONTAINER CAVEAT: some kernel-global sysctls (kptr_restrict, ptrace_scope,
+# io_uring_disabled, …) are read-only or namespaced inside a container, so
+# verify.yml asserts the written /etc/sysctl.d/90-ansible.conf drop-in
+# (always produced) rather than only the live `sysctl` value. The path-gated
+# knobs (bpf_jit_harden, unprivileged_userfaultfd, io_uring_disabled,
+# legacy_tiocsti) are exercised by the probe-then-apply path: where the knob
+# is absent the key is skipped AND kept out of the drop-in, which is exactly
+# the absent-key robustness under test.
+#
+# WHAT THE DUAL-OS MATRIX DOES AND DOES NOT PROVE: both platforms are Docker
+# containers that share the HOST kernel, so the noble and resolute legs run
+# the *same* running kernel regardless of the userspace release. These legs
+# therefore validate USERSPACE / package behaviour across 24.04 and 26.04
+# (package set installs, services, drop-in is written, probe-then-apply is
+# correct for whatever knobs the host kernel exposes). They do NOT — and
+# cannot — prove kernel-version-specific sysctl differences between kernel
+# 6.8 and 7.0; that needs VM-backed runners with the matching kernels. Do not
+# read a green run here as kernel-7.0 sysctl proof (ADR-004, LIMITATIONS L1).
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: common-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: common-resolute
+    image: geerlingguy/docker-ubuntu2604-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: profile_tasks
+  inventory:
+    host_vars:
+      common-noble:
+        # /tmp is a tmpfs in the container already; never live-remount it
+        # from under the running services (default false, set explicitly).
+        common_harden_tmp_remount: false
+      common-resolute:
+        common_harden_tmp_remount: false
+
+verifier:
+  name: ansible

@@ -79,7 +79,11 @@ Do not pre-create empty plugin directories.
   SHA256 verification. Not part of the hardening baseline — targets
   operator hosts only (workstations, admin/bastion VMs, CI runners).
 
-Target OS: Ubuntu 24.04 LTS.
+Target OS: Ubuntu 24.04 LTS (Noble) and Ubuntu 26.04 LTS (Resolute,
+kernel 7.0). Each role's `meta/main.yml` declares both `noble` and
+`resolute`. No official CIS 26.04 benchmark exists yet, so the 26.04
+baseline is "CIS 24.04 + kernel-7.0/KSPP delta" — see
+[`docs/ADR-004-ubuntu-2604-dual-support.md`](docs/ADR-004-ubuntu-2604-dual-support.md).
 
 Periodic re-validation against known-good sources (CIS Ubuntu Benchmark,
 BSI TR-02102-4, upstream OpenSSH / chrony / auditd / `pam_faillock` /
@@ -183,13 +187,43 @@ not script it.
 
 ### Worked example
 
-See
-[`inventories/development/group_vars/vault.yml.example`](../inventories/development/group_vars/vault.yml.example)
-for the placeholder structure. Copy it to
-`inventories/<env>/group_vars/vault.yml`, fill in real values, then
-encrypt:
+Two files demonstrate the convention:
+
+- **Plaintext template** —
+  [`inventories/development/group_vars/vault.yml.example`](inventories/development/group_vars/vault.yml.example):
+  the placeholder structure, committed as-is (the `.example` suffix exempts
+  it from the encryption guard). It stays in the inventory so contributors
+  see where a real `vault.yml` would live.
+- **Real encrypted file** —
+  [`docs/examples/vault.yml`](docs/examples/vault.yml): an *actually*
+  `ansible-vault`-encrypted `vault.yml` committed in encrypted form, so the
+  `ansible-vault-encrypted` pre-commit guard
+  (`scripts/check-vault-encrypted.sh`) has a real file to pass over and
+  contributors see the end state. It lives under `docs/examples/`
+  **deliberately outside any `inventories/<env>/group_vars/` path**: an
+  encrypted `group_vars/vault.yml` auto-loads for every playbook run against
+  that inventory, so a worked example sitting there would force ordinary
+  development runs to supply the vault password. Parked under `docs/examples/`
+  it never auto-loads, so `ansible-playbook -i inventories/development/hosts …`
+  needs no vault password. Its throwaway password is **`example`**, documented
+  in a comment inside the decrypted payload — it protects only placeholder
+  values, never real secrets. The `**/vault.yml` lint globs and the
+  `vault.yml` pre-commit guard both still cover it by filename. CI re-proves
+  it decrypts (`vault-example` job in `.github/workflows/ci.yml`). View it
+  with:
+
+  ```bash
+  ansible-vault view docs/examples/vault.yml
+  # password: example
+  ```
+
+To bootstrap a real environment, copy the template, fill in real values,
+then encrypt with a strong password (never documented):
 
 ```bash
+cp inventories/development/group_vars/vault.yml.example \
+   inventories/<env>/group_vars/vault.yml
+# ... fill in real values ...
 ansible-vault encrypt inventories/<env>/group_vars/vault.yml
 ```
 

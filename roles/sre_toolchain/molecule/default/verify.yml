@@ -1,0 +1,99 @@
+---
+# Verify: assert the sre_toolchain outcomes for the reduced opa +
+# kubeconform set — binaries on PATH, evidence manifest is valid JSON, the
+# strict-checksum path was exercised, and the (unrun) signature path is
+# recorded as not_checked. Catches the failure modes a static lint cannot.
+- name: Verify
+  hosts: all
+  become: true
+  vars:
+    sre_expected_bins:
+      - opa
+      - kubeconform
+    sre_manifest_path: /usr/local/bin/.sre-toolchain-versions.json
+  tasks:
+    - name: Stat the installed binaries
+      ansible.builtin.stat:
+        path: "/usr/local/bin/{{ item }}"
+      loop: "{{ sre_expected_bins }}"
+      register: sre_bin_stats
+
+    - name: Assert each binary landed on PATH and is executable
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.executable
+        fail_msg: "{{ item.item }} did not install to /usr/local/bin or is not +x"
+      loop: "{{ sre_bin_stats.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Run opa version (binary actually executes)
+      ansible.builtin.command:
+        cmd: /usr/local/bin/opa version
+      register: sre_opa_version
+      changed_when: false
+
+    - name: Run kubeconform version (archive-extracted binary executes)
+      ansible.builtin.command:
+        cmd: /usr/local/bin/kubeconform -v
+      register: sre_kubeconform_version
+      changed_when: false
+
+    - name: Assert the tools reported a version
+      ansible.builtin.assert:
+        that:
+          - sre_opa_version.stdout | length > 0
+          - sre_kubeconform_version.stdout | length > 0
+        fail_msg: "a tool did not report a version when invoked"
+
+    - name: Stat the evidence manifest
+      ansible.builtin.stat:
+        path: "{{ sre_manifest_path }}"
+      register: sre_manifest_stat
+
+    - name: Assert the evidence manifest exists (CTL-002)
+      ansible.builtin.assert:
+        that:
+          - sre_manifest_stat.stat.exists
+        fail_msg: "{{ sre_manifest_path }} (evidence manifest) was not written"
+
+    - name: Read the evidence manifest
+      ansible.builtin.slurp:
+        src: "{{ sre_manifest_path }}"
+      register: sre_manifest_raw
+
+    - name: Parse the manifest (fails the play if it is not valid JSON)
+      ansible.builtin.set_fact:
+        sre_manifest: "{{ sre_manifest_raw.content | b64decode | from_json }}"
+
+    - name: Assert the manifest shape and the recorded checksum policy
+      ansible.builtin.assert:
+        that:
+          - sre_manifest.checksum_policy == 'strict'
+          - sre_manifest.tools.opa is defined
+          - sre_manifest.tools.kubeconform is defined
+          - sre_manifest.evidence.opa is defined
+          - sre_manifest.evidence.kubeconform is defined
+        fail_msg: "evidence manifest is missing expected tools/evidence keys"
+
+    - name: Assert the strict checksum path was exercised (verified SHA256)
+      ansible.builtin.assert:
+        that:
+          - sre_manifest.evidence.opa.checksum == 'verified'
+          - sre_manifest.evidence.kubeconform.checksum == 'verified'
+          - sre_manifest.evidence.opa.sha256 | length == 64
+        fail_msg: >-
+          a tool's checksum was not 'verified' — the strict checksum path
+          did not confirm the upstream SHA256 (would have aborted on
+          mismatch; 'no_checksum' means strict policy was not exercised).
+
+    - name: Assert the signature path is recorded as not run (cosign absent)
+      ansible.builtin.assert:
+        that:
+          - sre_manifest.verify_signatures | bool == false
+          - sre_manifest.evidence.opa.signature == 'not_checked'
+          - sre_manifest.evidence.kubeconform.signature == 'not_checked'
+        fail_msg: >-
+          signature verification was unexpectedly attempted; this scenario
+          runs with verify_signatures=false (cosign not installed).

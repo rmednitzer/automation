@@ -1,5 +1,5 @@
 ---
-# Auditd role for Ubuntu 24.04 LTS
+# Auditd role for Ubuntu 24.04/26.04 LTS
 
 - name: Install auditd and audispd-plugins
   ansible.builtin.apt:

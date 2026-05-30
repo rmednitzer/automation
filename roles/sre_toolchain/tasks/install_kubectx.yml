@@ -37,20 +37,19 @@
 - name: "SKIP — already installed"
   when: kubectx_skip
   block:
-    - name: "Read installed version from manifest"
-      ansible.builtin.command:
-        cmd: >-
-          jq -r '.tools.kubectx // "unknown"' {{ sre_toolchain_version_log | quote }}
-      register: kubectx_existing
-      changed_when: false
-      failed_when: false
-      become: true
+    # Read the recorded version from the previous manifest fact (parsed once
+    # in main.yml) rather than shelling out to jq, so a skip-only re-converge
+    # reproduces the same tools map. kubectx/kubens publish no checksum, so
+    # the install path records no evidence entry for them — the skip path
+    # likewise adds none, keeping the manifest stable (idempotent).
     - name: "Record existing version"
       ansible.builtin.set_fact:
         sre_toolchain_installed: >-
           {{ sre_toolchain_installed
-             | combine({'kubectx': kubectx_existing.stdout | default('unknown'),
-                        'kubens':  kubectx_existing.stdout | default('unknown')}) }}
+             | combine({'kubectx': (sre_toolchain_prev_manifest.tools | default({}))['kubectx']
+                                   | default('unknown'),
+                        'kubens':  (sre_toolchain_prev_manifest.tools | default({}))['kubens']
+                                   | default('unknown')}) }}
         sre_toolchain_skipped: "{{ (sre_toolchain_skipped | int) + 1 }}"
 
 # kubectx/kubens publish no upstream checksum, so under the strict policy

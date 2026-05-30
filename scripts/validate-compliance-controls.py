@@ -9,9 +9,12 @@ Exits ``0`` if the file conforms to the project convention (see
 ``CLAUDE.md`` and the file's header comment). Exits ``1`` on any
 violation, printing the failing rule and the offending entry.
 
-The check is intentionally minimal — it enforces the structural rules that
-the project relies on for audit and PR review, without prescribing a formal
-JSON Schema (see ``LIMITATIONS.md`` L6).
+The check enforces the structural rules that the project relies on for audit
+and PR review. A formal JSON Schema (draft 2020-12) is also published at
+``docs/schemas/compliance-controls.schema.json`` (closing ``LIMITATIONS.md``
+L6); this script validates against it when the optional ``jsonschema``
+package is installed, and otherwise leaves the structural rules below
+authoritative (the project stays dependency-light — PyYAML only).
 
 Rules enforced:
 
@@ -36,6 +39,9 @@ Rules enforced:
         the id must exist).
    This stops ``docs/compliance-controls.yml`` and the role headers from
    silently drifting apart (see CLAUDE.md and ADR-001 finding F1.11).
+8. The document validates against the published JSON Schema at
+   ``docs/schemas/compliance-controls.schema.json`` (only when ``jsonschema``
+   is installed; the schema file must always be valid JSON).
 """
 
 from __future__ import annotations
@@ -48,6 +54,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONTROLS_FILE = REPO_ROOT / "docs" / "compliance-controls.yml"
+SCHEMA_FILE = REPO_ROOT / "docs" / "schemas" / "compliance-controls.schema.json"
 ROLES_DIR = REPO_ROOT / "roles"
 
 REQUIRED_CONTROL_FIELDS = ("title", "description", "regulatory_mapping", "roles")
@@ -184,6 +191,44 @@ def validate_reverse_mapping(
                 )
 
 
+def validate_against_schema(data: object) -> str:
+    """Validate *data* against the published JSON Schema (L6).
+
+    The schema at ``docs/schemas/compliance-controls.schema.json`` (draft
+    2020-12) is the formal contract for the file's structure. We validate
+    against it only when the optional ``jsonschema`` package is installed —
+    the project stays dependency-light (PyYAML only), so when ``jsonschema``
+    is absent the structural checks above remain authoritative and the
+    schema stands as published documentation. Returns a short status string
+    for the summary line; calls :func:`fail` on a schema violation.
+    """
+    if not SCHEMA_FILE.exists():
+        fail(f"schema file not found: {SCHEMA_FILE}")
+
+    # The schema must always be loadable as JSON, even without jsonschema,
+    # so a malformed schema is caught in CI rather than shipping silently.
+    import json
+
+    try:
+        schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        fail(f"schema is not valid JSON: {exc}")
+
+    try:
+        import jsonschema
+    except ImportError:
+        return "schema present (jsonschema not installed — structural check authoritative)"
+
+    try:
+        jsonschema.validate(instance=data, schema=schema)
+    except jsonschema.ValidationError as exc:
+        location = "/".join(str(p) for p in exc.absolute_path) or "<root>"
+        fail(f"schema validation failed at '{location}': {exc.message}")
+    except jsonschema.SchemaError as exc:
+        fail(f"the JSON Schema itself is invalid: {exc.message}")
+    return "schema validated (jsonschema)"
+
+
 def main() -> None:
     if not CONTROLS_FILE.exists():
         fail(f"controls file not found: {CONTROLS_FILE}")
@@ -211,10 +256,13 @@ def main() -> None:
     role_header_ids = parse_role_header_ids()
     validate_reverse_mapping(controls, policies, role_header_ids)
 
+    schema_status = validate_against_schema(data)
+
     print(
         f"OK: {len(controls)} control(s), {len(policies)} policy(ies); "
         f"roles cross-referenced against {len(known_roles)} role(s); "
-        f"bidirectional header cross-references consistent."
+        f"bidirectional header cross-references consistent; "
+        f"{schema_status}."
     )
 
 

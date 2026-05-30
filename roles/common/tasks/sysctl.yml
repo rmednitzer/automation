@@ -1,14 +1,105 @@
 ---
-# Sysctl kernel tuning tasks
+# Sysctl kernel tuning tasks.
+#
+# Robust to ABSENT keys end-to-end. Some KSPP/CIS knobs do not exist on every
+# kernel/container: they are compiled out (no CONFIG_*) or namespaced away
+# inside containers, so their /proc/sys/<path> is missing. Writing such a key
+# to the drop-in and then `sysctl -p`-reloading it fails the run. We therefore
+# never trust the static maps blindly:
+#
+#   1. Probe /proc/sys/<path> for EVERY key (the always-present main set AND
+#      the explicitly-optional set). A key whose path is absent is treated
+#      identically in both: it is not applied.
+#   2. Prune from the persisted drop-in FIRST (reload:false) every key that is
+#      NOT in the role's managed-and-applicable set -- the present map keys
+#      plus the keys kernel_hardening.yml owns (common_kernel_hardening_sysctl_keys,
+#      since both tasks share this drop-in). That removes BOTH a map key that
+#      is absent on this kernel AND a key removed from the role entirely, so no
+#      stale line survives to break the later reload.
+#   3. Apply only the present keys, writing the drop-in and reloading LAST.
+#
+# Net effect: /etc/sysctl.d/90-ansible.conf only ever contains keys the role
+# currently manages and that exist on this kernel, so it converges cleanly
+# across the 24.04 (kernel 6.8) / 26.04 (kernel 7.0) matrix and on stripped
+# containers — and a host that loses a knob on a kernel change, or that carried
+# a now-removed knob, re-converges without that key instead of failing. See
+# ADR-004 and roles/common/README.md.
 
-- name: Apply sysctl settings
+- name: Combine the unconditional and optional sysctl maps for probing
+  ansible.builtin.set_fact:
+    common_sysctl_all: >-
+      {{ common_sysctl_settings | combine(common_sysctl_settings_optional) }}
+
+- name: Probe each sysctl key for a live /proc/sys path
+  ansible.builtin.stat:
+    path: "/proc/sys/{{ item.key | replace('.', '/') }}"
+  loop: "{{ common_sysctl_all | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: common_sysctl_probe
+  changed_when: false
+  become: true
+
+- name: Partition sysctl keys into the present set (paths that exist now)
+  ansible.builtin.set_fact:
+    common_sysctl_present: >-
+      {{ common_sysctl_probe.results
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+
+# The role OWNS /etc/sysctl.d/90-ansible.conf, so it must end up containing
+# EXACTLY the keys the role currently manages-and-can-apply, and nothing else.
+# The managed-and-applicable set is the single source of truth: the map keys
+# PRESENT on this kernel, plus the keys kernel_hardening.yml applies (which is
+# enumerated once in common_kernel_hardening_sysctl_keys -- the two files share
+# this drop-in). Any OTHER key in the file is stale -- a map key that is absent
+# on this kernel, OR a key removed from the role entirely (dropped from the maps
+# or from kernel_hardening.yml) -- and is pruned BEFORE the reload, so a stale
+# unsupported line can never break the present-key `reload: true`. reload:false
+# on the prune: the cleanup itself must not trigger a whole-file reload.
+- name: Stat the persisted sysctl drop-in
+  ansible.builtin.stat:
+    path: /etc/sysctl.d/90-ansible.conf
+  register: common_sysctl_dropin_stat
+  become: true
+
+- name: Read the persisted sysctl drop-in (when it exists)
+  ansible.builtin.slurp:
+    src: /etc/sysctl.d/90-ansible.conf
+  register: common_sysctl_dropin_read
+  when: common_sysctl_dropin_stat.stat.exists
+  become: true
+
+- name: Compute the stale keys to prune from the drop-in
+  ansible.builtin.set_fact:
+    # keys-in-file - (present map keys + kernel_hardening keys) = stale keys.
+    common_sysctl_stale_keys: >-
+      {{ (common_sysctl_dropin_read.content | b64decode
+          | regex_findall('(?m)^\s*([\w.\-]+)\s*='))
+         | difference((common_sysctl_present | map(attribute='key') | list)
+                      + common_kernel_hardening_sysctl_keys)
+         if common_sysctl_dropin_stat.stat.exists else [] }}
+
+- name: Prune stale keys from the drop-in before reloading (no stale lines)
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    sysctl_file: /etc/sysctl.d/90-ansible.conf
+    state: absent
+    reload: false
+  loop: "{{ common_sysctl_stale_keys }}"
+  loop_control:
+    label: "{{ item }}"
+  become: true
+
+- name: Apply sysctl settings present on this kernel
   ansible.posix.sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
-  loop: "{{ common_sysctl_settings | dict2items }}"
+  loop: "{{ common_sysctl_present }}"
   loop_control:
     label: "{{ item.key }}={{ item.value }}"
   become: true

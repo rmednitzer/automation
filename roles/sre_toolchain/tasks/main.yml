@@ -1,5 +1,5 @@
 ---
-# SRE/Platform/Security toolchain installer for Ubuntu 24.04 LTS
+# SRE/Platform/Security toolchain installer for Ubuntu 24.04/26.04 LTS
 # NIS2 Art 21.2(a)(e), CRA Annex I Part I, ISO 27001 A.8.30, POL-002, CTL-002
 
 - name: Resolve architecture facts
@@ -71,6 +71,13 @@
     group: root
     mode: "0700"
   become: true
+  # Ephemeral working area: created here and unconditionally removed in the
+  # always block below, so it never persists across converges. Reporting it as
+  # changed (create now, remove in always) would make Molecule's idempotence
+  # pass fail on every run even when all tools are skipped, though no persistent
+  # state changes. changed_when:false reflects that it is transient scratch,
+  # not managed state, keeping the idempotence check meaningful.
+  changed_when: false
   tags:
     - sre-toolchain
 
@@ -94,6 +101,50 @@
     sre_toolchain_fail: 0
   tags:
     - sre-toolchain
+
+# Read the previous manifest (if any) so a re-converge that SKIPS an
+# already-installed tool can carry that tool's evidence forward unchanged
+# instead of dropping it. Without this, a no-op converge would rewrite the
+# manifest with an empty evidence map for the skipped tools and Molecule's
+# idempotence step would report a change. Tolerates a missing/invalid file.
+- name: Seed the previous-manifest fact (empty default)
+  ansible.builtin.set_fact:
+    sre_toolchain_prev_manifest: {}
+  tags:
+    - sre-toolchain
+
+- name: Stat the existing evidence manifest
+  ansible.builtin.stat:
+    path: "{{ sre_toolchain_version_log }}"
+  register: sre_toolchain_manifest_stat
+  become: true
+  tags:
+    - sre-toolchain
+
+- name: Slurp the existing evidence manifest
+  ansible.builtin.slurp:
+    src: "{{ sre_toolchain_version_log }}"
+  register: sre_toolchain_manifest_slurp
+  when: sre_toolchain_manifest_stat.stat.exists
+  become: true
+  tags:
+    - sre-toolchain
+
+# from_json can raise on a corrupt file; the rescue keeps the empty default so
+# the role still runs (it simply re-records evidence on this pass).
+- name: Parse the previous manifest (best effort)
+  when: sre_toolchain_manifest_stat.stat.exists
+  tags:
+    - sre-toolchain
+  block:
+    - name: Decode the previous manifest JSON
+      ansible.builtin.set_fact:
+        sre_toolchain_prev_manifest: >-
+          {{ sre_toolchain_manifest_slurp.content | b64decode | from_json }}
+  rescue:
+    - name: Keep the empty previous-manifest default on parse failure
+      ansible.builtin.set_fact:
+        sre_toolchain_prev_manifest: {}
 
 # When signature verification is enabled, cosign must exist on the target
 # before any tool is verified. Bootstrap it first from the catalogue entry
@@ -158,3 +209,8 @@
         path: "{{ sre_toolchain_tmp_dir }}"
         state: absent
       become: true
+      # Tear-down of the ephemeral scratch dir (see "Ensure scratch directory
+      # exists"): non-reporting so the idempotence pass is not tripped by this
+      # transient cleanup. Downloaded archives must never linger, so this always
+      # runs regardless.
+      changed_when: false

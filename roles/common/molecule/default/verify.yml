@@ -1,0 +1,103 @@
+---
+# Verify: assert the key outcomes of the common role's sysctl baseline,
+# focused on the kernel-7.0 / KSPP additions (ADR-004). Asserts the written
+# /etc/sysctl.d/90-ansible.conf drop-in (always produced) so the check is
+# robust in a container where some kernel-global sysctls are read-only.
+- name: Verify
+  hosts: all
+  become: true
+  # This standalone verifier does not include the common role, so the role
+  # defaults are not auto-loaded. Load them explicitly so the optional-sysctl
+  # probe loop below can reference common_sysctl_settings_optional (otherwise
+  # it fails on an undefined variable). Path is relative to this playbook:
+  # roles/common/molecule/default/ -> roles/common/defaults/main.yml.
+  vars_files:
+    - ../../defaults/main.yml
+  tasks:
+    - name: Stat the sysctl drop-in
+      ansible.builtin.stat:
+        path: /etc/sysctl.d/90-ansible.conf
+      register: common_sysctl_dropin
+
+    - name: Assert the sysctl drop-in was written
+      ansible.builtin.assert:
+        that:
+          - common_sysctl_dropin.stat.exists
+        fail_msg: "/etc/sysctl.d/90-ansible.conf was not written"
+
+    - name: Read the sysctl drop-in
+      ansible.builtin.slurp:
+        src: /etc/sysctl.d/90-ansible.conf
+      register: common_sysctl_content
+
+    - name: Decode the drop-in for assertions
+      ansible.builtin.set_fact:
+        common_sysctl_text: "{{ common_sysctl_content.content | b64decode }}"
+
+    # protected_fifos / protected_regular are present on every supported
+    # kernel (>= 4.19), so they live in the always-present main set and are
+    # asserted unconditionally. bpf_jit_harden and unprivileged_userfaultfd
+    # can be compiled out / namespaced away, so they moved to the path-gated
+    # optional set and are covered by the present-only loop below — asserting
+    # them here would wrongly fail inside a container that lacks the knob.
+    - name: Assert the always-present KSPP / CIS sysctls are in the drop-in
+      ansible.builtin.assert:
+        that:
+          - "'fs.protected_fifos = 2' in common_sysctl_text"
+          - "'fs.protected_regular = 2' in common_sysctl_text"
+        fail_msg: >-
+          A kernel-7.0 / KSPP sysctl addition is missing from
+          /etc/sysctl.d/90-ansible.conf (protected_fifos / protected_regular).
+
+    - name: Assert the overridable kernel-hardening sysctls are present
+      ansible.builtin.assert:
+        that:
+          - "'kernel.kptr_restrict = 2' in common_sysctl_text"
+          - "'kernel.dmesg_restrict = 1' in common_sysctl_text"
+          - "'kernel.yama.ptrace_scope = 2' in common_sysctl_text"
+        fail_msg: "an expected kernel-hardening sysctl is missing from the drop-in"
+
+    # Optional knobs are path-gated: assert that for every key whose
+    # /proc/sys path exists on THIS kernel, the drop-in contains the key
+    # (proving probe-then-apply worked); absent paths are correctly skipped.
+    - name: Probe the optional sysctl paths
+      ansible.builtin.stat:
+        path: "/proc/sys/{{ item.key | replace('.', '/') }}"
+      loop: "{{ common_sysctl_settings_optional | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: common_verify_optional_paths
+
+    - name: Assert each present optional knob was written to the drop-in
+      ansible.builtin.assert:
+        that:
+          - (item.item.key ~ ' =') in common_sysctl_text
+        fail_msg: >-
+          optional sysctl {{ item.item.key }} exists on this kernel
+          (/proc/sys path present) but was not written to the drop-in.
+      loop: "{{ common_verify_optional_paths.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: item.stat.exists
+
+    # The other half of robustness: a knob whose /proc/sys path is ABSENT on
+    # this kernel must NOT appear in the drop-in (no stale line that a later
+    # `reload: true` would choke on). Proves the absent-key removal path.
+    - name: Assert each absent optional knob is NOT in the drop-in
+      ansible.builtin.assert:
+        that:
+          - (item.item.key ~ ' =') not in common_sysctl_text
+        fail_msg: >-
+          optional sysctl {{ item.item.key }} is absent on this kernel
+          (/proc/sys path missing) but a line for it was written to the
+          drop-in — a stale line that could break a later reload.
+      loop: "{{ common_verify_optional_paths.results }}"
+      loop_control:
+        label: "{{ item.item.key }}"
+      when: not item.stat.exists
+
+    - name: Assert ASLR sysctl drop-in value (kernel_hardening.yml)
+      ansible.builtin.assert:
+        that:
+          - "'kernel.randomize_va_space = 2' in common_sysctl_text"
+        fail_msg: "kernel.randomize_va_space=2 (full ASLR) missing from drop-in"
