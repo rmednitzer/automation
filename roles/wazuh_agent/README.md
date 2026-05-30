@@ -10,9 +10,13 @@ integrity monitoring, rootcheck) reporting to a Wazuh manager, on Ubuntu
   verified against the imported signing key); optionally **pins and verifies**
   the key fingerprint (`wazuh_apt_key_fingerprint`).
 - Installs `wazuh-agent` (version-pinnable).
-- Deploys `/var/ossec/etc/ossec.conf`: manager connection, auto-**enrollment**
-  (authd), **syscheck** (FIM) on `/etc`, `/usr/bin`, `/boot`, … (realtime on
-  `/etc`), **rootcheck**, journald + auth/dpkg log collection, active response.
+- Deploys `/var/ossec/etc/ossec.conf`: manager connection + auto-**enrollment**
+  (authd) nested under `<client>`, **syscheck** (FIM) on `/etc`, `/usr/bin`,
+  `/boot`, … (realtime on `/etc`), **rootcheck**, journald + auth/dpkg log
+  collection, active response. FIM on `/etc` is **metadata-only**
+  (`report_changes: false`) so secret-bearing files (`/etc/shadow`, TLS keys)
+  are not copied into the manager's diff store; `wazuh_fim_nodiff` is a
+  defence-in-depth backstop for sensitive paths.
 - Deploys the enrollment password to `/var/ossec/etc/authd.pass` (when set),
   with `no_log` so the secret never reaches the Ansible log.
 - Enables and starts the `wazuh-agent` service.
@@ -48,7 +52,8 @@ integrity monitoring, rootcheck) reporting to a Wazuh manager, on Ubuntu
 | `wazuh_agent_groups` | `default` | Agent group(s) |
 | `wazuh_agent_version` | `""` (latest) | Pin a package version, e.g. `4.9.2-1` |
 | `wazuh_apt_key_fingerprint` | `""` | Optional supply-chain pin (verified when set) |
-| `wazuh_fim_directories` | `/etc` (realtime), `/usr/bin`, `/usr/sbin`, `/bin`, `/sbin`, `/boot` | FIM watch list |
+| `wazuh_fim_directories` | `/etc` (realtime, metadata-only), `/usr/bin`, `/usr/sbin`, `/bin`, `/sbin`, `/boot` | FIM watch list (`report_changes: false` on `/etc`) |
+| `wazuh_fim_nodiff` | `/etc/shadow`, `/etc/gshadow`, `/etc/ssl/private`, `/etc/ssh` | Paths whose content is never sent to the manager |
 | `wazuh_manage_service` | `true` | Manage the service (auto-off in container guests) |
 
 Full list in `defaults/main.yml`.

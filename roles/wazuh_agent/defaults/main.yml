@@ -61,8 +61,14 @@ wazuh_registration_password: ""
 
 wazuh_syscheck_enabled: true
 wazuh_syscheck_frequency: 43200    # full scan every 12h
+# FIM watch list. report_changes (content diff sent to the manager) is OFF for
+# /etc by default: /etc holds secret material (/etc/shadow, TLS private keys,
+# service credentials), and reporting changes there would copy that content
+# into the Wazuh diff store and FIM alerts. Metadata-only monitoring still
+# detects + alerts on changes (hash/size/mtime) without exfiltrating content.
+# Enable report_changes per path only for directories you know hold no secrets.
 wazuh_fim_directories:
-  - { path: "/etc", realtime: true, report_changes: true }
+  - { path: "/etc", realtime: true, report_changes: false }
   - { path: "/usr/bin", realtime: false, report_changes: false }
   - { path: "/usr/sbin", realtime: false, report_changes: false }
   - { path: "/bin", realtime: false, report_changes: false }
@@ -74,6 +80,14 @@ wazuh_fim_ignore:
   - "/etc/mail/statistics"
   - "/etc/random-seed"
   - "/etc/adjtime"
+# nodiff: even if report_changes is enabled for a covering path, never send the
+# before/after CONTENT of these secret-bearing paths to the manager (a
+# defence-in-depth backstop on top of report_changes:false above).
+wazuh_fim_nodiff:
+  - "/etc/shadow"
+  - "/etc/gshadow"
+  - "/etc/ssl/private"
+  - "/etc/ssh"
 
 wazuh_rootcheck_enabled: true
 

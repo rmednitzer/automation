@@ -21,9 +21,11 @@
          and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
                   and (ansible_virtualization_role | default('host')) == 'guest') }}
 
-- name: Ensure gnupg is present (to dearmor the repo key)
+- name: Ensure key/config tooling is present (dearmor + XML validation)
   ansible.builtin.apt:
-    name: gnupg
+    name:
+      - gnupg          # gpg --dearmor for the repo key
+      - libxml2-utils  # xmllint, to validate the rendered ossec.conf
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -37,28 +39,16 @@
     group: root
     mode: "0644"
   become: true
+  register: wazuh_key_download
 
-- name: Dearmor the Wazuh signing key into the apt keyring
-  ansible.builtin.command:
-    cmd: "gpg --batch --yes --dearmor -o {{ wazuh_apt_keyring }} /usr/share/keyrings/wazuh.asc"
-    creates: "{{ wazuh_apt_keyring }}"
-  become: true
-
-- name: Ensure the apt keyring is world-readable
-  ansible.builtin.file:
-    path: "{{ wazuh_apt_keyring }}"
-    owner: root
-    group: root
-    mode: "0644"
-  become: true
-
-# Optional supply-chain pin: when wazuh_apt_key_fingerprint is set, the imported
-# key's fingerprint must match it, or the play fails (no silent key swap).
-- name: Verify the Wazuh key fingerprint (when pinned)
+# Optional supply-chain pin: verify the fetched ARMORED key BEFORE it is
+# dearmored into the trusted signed-by keyring, so a key that fails the pin is
+# never trusted by apt. (Only runs when wazuh_apt_key_fingerprint is set.)
+- name: Verify the fetched Wazuh key fingerprint (when pinned)
   when: wazuh_apt_key_fingerprint | length > 0
   become: true
   block:
-    - name: Read the imported key fingerprint
+    - name: Read the fetched key fingerprint
       # gpg --with-colons emits the fingerprint as field 10 of the `fpr:` line.
       ansible.builtin.shell:
         cmd: >-
@@ -78,6 +68,31 @@
           wazuh_apt_key_fingerprint ({{ wazuh_apt_key_fingerprint }}). Refusing
           to trust the repository.
         quiet: true
+
+- name: Stat the dearmored apt keyring
+  ansible.builtin.stat:
+    path: "{{ wazuh_apt_keyring }}"
+  register: wazuh_keyring_stat
+  become: true
+
+# Dearmor into the trusted keyring AFTER verification, and refresh it whenever
+# the armored key changes (key rotation / corrected pin) or it is missing — not
+# a one-time `creates:`, which would keep apt trusting a stale keyring after a
+# rotation while the fingerprint check (on the armored file) still passed.
+- name: Dearmor the verified Wazuh key into the apt keyring
+  ansible.builtin.command:
+    cmd: "gpg --batch --yes --dearmor -o {{ wazuh_apt_keyring }} /usr/share/keyrings/wazuh.asc"
+  become: true
+  when: wazuh_key_download is changed or not wazuh_keyring_stat.stat.exists
+  changed_when: true
+
+- name: Ensure the apt keyring is world-readable
+  ansible.builtin.file:
+    path: "{{ wazuh_apt_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
 
 - name: Configure the Wazuh APT repository (signed-by)
   ansible.builtin.apt_repository:
@@ -109,6 +124,17 @@
   when: wazuh_registration_password | length > 0
   notify: Restart wazuh-agent
 
+# When the password is cleared (password-less enrollment, or to stop
+# distributing the secret), remove any previously deployed authd.pass — leaving
+# it would keep a stale secret on disk that the agent would still use.
+- name: Remove a stale enrollment password when password-less
+  ansible.builtin.file:
+    path: /var/ossec/etc/authd.pass
+    state: absent
+  become: true
+  when: wazuh_registration_password | length == 0
+  notify: Restart wazuh-agent
+
 - name: Deploy the wazuh-agent configuration
   ansible.builtin.template:
     src: ossec.conf.j2
@@ -116,6 +142,9 @@
     owner: root
     group: wazuh
     mode: "0640"
+    # ossec.conf is security-critical (SECURITY.md): validate the render is
+    # well-formed XML so a malformed template can't replace a working config.
+    validate: "xmllint --noout %s"
   become: true
   notify: Restart wazuh-agent
 
