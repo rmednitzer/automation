@@ -15,6 +15,28 @@
              and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
                       and (ansible_virtualization_role | default('host')) == 'guest') }}
 
+    # aa-enforce/aa-complain take a top-level profile or executable path. A
+    # loaded-profile name from aa-status that is a child/hat profile (contains
+    # '//') is not a valid argument, so reject it up front with guidance rather
+    # than letting the change silently no-op. Gated on apparmor_runtime_managed:
+    # validation fires only where the mode changes are actually attempted, so an
+    # unmanaged/container-guest host keeps the documented skip behaviour and is
+    # not failed for a profile it would never touch (managed hosts still catch
+    # the bad value).
+    - name: Assert opted-in profile names are top-level (not hat/child profiles)
+      ansible.builtin.assert:
+        that:
+          - "'//' not in item"
+        fail_msg: >-
+          AppArmor profile '{{ item }}' looks like a child/hat profile (contains
+          '//'); aa-enforce/aa-complain act on a top-level profile or the
+          executable path. List the parent profile or executable instead.
+        quiet: true
+      loop: "{{ apparmor_complain_profiles + apparmor_enforce_profiles }}"
+      loop_control:
+        label: "{{ item }}"
+      when: apparmor_runtime_managed | bool
+
     - name: Install AppArmor packages
       ansible.builtin.apt:
         name: "{{ apparmor_packages }}"
@@ -22,6 +44,7 @@
         update_cache: true
         cache_valid_time: 3600
       become: true
+      notify: Reload AppArmor
 
     - name: Install the distribution AppArmor profile sets
       ansible.builtin.apt:
@@ -33,6 +56,7 @@
         cache_valid_time: 3600
       become: true
       when: apparmor_install_extra_profiles | bool
+      notify: Reload AppArmor
 
     - name: Enable and start AppArmor
       ansible.builtin.systemd_service:
@@ -42,8 +66,52 @@
       become: true
       when: apparmor_runtime_managed | bool
 
-    # aa-status --json exits non-zero when AppArmor is disabled/unavailable;
-    # failed_when:false keeps the run going and the parse step is guarded on rc.
+    # Decide whether AppArmor is actually active from apparmorfs, BEFORE any
+    # reload. This is independent of the apparmor.service and apparmor-utils:
+    # /sys/kernel/security/apparmor/ exists iff the LSM is enabled in the
+    # kernel. Doing it first means a disabled host is diagnosed (or explicitly
+    # allowed) before we attempt a reload — the packaged unit asserts on
+    # /sys/kernel/security/apparmor/.load, so reloading it on a disabled host
+    # would fail there instead of at the actionable assert below.
+    - name: Check whether the AppArmor LSM is active (apparmorfs present)
+      ansible.builtin.stat:
+        path: /sys/kernel/security/apparmor/profiles
+      register: apparmor_securityfs
+      become: true
+      when: apparmor_runtime_managed | bool
+
+    # The role's purpose is to ensure MAC is active, so a disabled managed host
+    # fails with guidance instead of silently skipping the rest.
+    - name: Assert AppArmor is actually enabled on this host
+      ansible.builtin.assert:
+        that:
+          - apparmor_securityfs.stat.exists
+        fail_msg: >-
+          AppArmor is not active on this host (no /sys/kernel/security/apparmor).
+          Check the kernel is booted with 'apparmor=1 security=apparmor' and that
+          securityfs is mounted, then reboot. Set apparmor_require_enabled=false
+          to allow this host to run without AppArmor.
+        quiet: true
+      when:
+        - apparmor_runtime_managed | bool
+        - apparmor_require_enabled | bool
+
+    # True only on a managed host where the LSM is actually active. Everything
+    # that needs AppArmor running (reload, status read, mode changes, audit) is
+    # gated on this, so a disabled host allowed via apparmor_require_enabled is
+    # not failed by a reload of an inactive unit.
+    - name: Set whether AppArmor is active and manageable
+      ansible.builtin.set_fact:
+        apparmor_active: "{{ apparmor_runtime_managed | bool and (apparmor_securityfs.stat.exists | default(false)) }}"
+
+    # Load any newly installed profiles NOW (before the audit/mode changes read
+    # aa-status). systemctl start is a no-op on an already-running service, so
+    # without this the audit would run against the stale loaded set. The Reload
+    # AppArmor handler is gated on apparmor_active, so this flush only reloads
+    # where AppArmor is up.
+    - name: Load newly installed AppArmor profiles before auditing
+      ansible.builtin.meta: flush_handlers
+
     - name: Read the current AppArmor profile status
       ansible.builtin.command:
         cmd: aa-status --json
@@ -51,19 +119,20 @@
       changed_when: false
       failed_when: false
       become: true
-      when: apparmor_runtime_managed | bool
+      when: apparmor_active | bool
 
     - name: Parse the AppArmor profile modes
       ansible.builtin.set_fact:
         apparmor_profile_modes: "{{ (apparmor_status_raw.stdout | from_json).profiles | default({}) }}"
       when:
-        - apparmor_runtime_managed | bool
+        - apparmor_active | bool
         - apparmor_status_raw.rc | default(1) == 0
         - apparmor_status_raw.stdout | default('') | length > 0
 
     # Idempotent: only act on profiles that are loaded and not already in the
-    # target mode. A profile name that is absent from aa-status (typo / not
-    # loaded) is skipped rather than erroring.
+    # target mode. changed_when reflects the tool actually transitioning the
+    # profile ("Setting <p> to ... mode.") so a no-op is not reported as a
+    # change; a genuine failure (unknown profile) still fails the task.
     - name: Set opted-in profiles to complain mode
       ansible.builtin.command:
         cmd: "aa-complain {{ item }}"
@@ -71,9 +140,10 @@
       loop_control:
         label: "{{ item }}"
       become: true
-      changed_when: true
+      register: apparmor_complain_result
+      changed_when: "'Setting' in (apparmor_complain_result.stdout | default(''))"
       when:
-        - apparmor_runtime_managed | bool
+        - apparmor_active | bool
         - apparmor_profile_modes is defined
         - item in apparmor_profile_modes
         - apparmor_profile_modes[item] != 'complain'
@@ -85,9 +155,10 @@
       loop_control:
         label: "{{ item }}"
       become: true
-      changed_when: true
+      register: apparmor_enforce_result
+      changed_when: "'Setting' in (apparmor_enforce_result.stdout | default(''))"
       when:
-        - apparmor_runtime_managed | bool
+        - apparmor_active | bool
         - apparmor_profile_modes is defined
         - item in apparmor_profile_modes
         - apparmor_profile_modes[item] != 'enforce'
@@ -101,5 +172,5 @@
         verbosity: 1
       when:
         - apparmor_audit | bool
-        - apparmor_runtime_managed | bool
+        - apparmor_active | bool
         - apparmor_profile_modes is defined

@@ -30,6 +30,13 @@ apparmor_enabled: true
 # same ansible_virtualization_role == 'guest' check as auditd / dns.
 apparmor_manage_runtime: true
 
+# Fail the run if AppArmor proves to be DISABLED on a managed (non-container)
+# host — i.e. `aa-status` reports the LSM is not active (disabled at the kernel
+# cmdline, no apparmorfs, or no policy). The whole point of this role is to
+# ensure MAC is active, so a hardening run should not pass while it is off.
+# Set false only for hosts that legitimately run without AppArmor.
+apparmor_require_enabled: true
+
 # --- Packages -----------------------------------------------------------------
 # Core LSM userspace + the utilities (aa-status, aa-enforce, aa-complain).
 apparmor_packages:

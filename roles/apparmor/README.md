@@ -35,8 +35,10 @@ the app still works and the logs are clean, then promote it to enforce:
 
 ```yaml
 # inventories/<env>/group_vars/<group>.yml
-# Names must match `aa-status` exactly (usually the binary path; sometimes a
-# short name). Check with: sudo aa-status
+# Use a TOP-LEVEL profile name / executable path as listed by `aa-status`
+# (e.g. /usr/sbin/tcpdump). Child/hat profiles (names containing `//`) are not
+# valid arguments to aa-enforce/aa-complain and are rejected with guidance.
+# Check current names with: sudo aa-status
 apparmor_complain_profiles:
   - /usr/sbin/tcpdump
 apparmor_enforce_profiles:
@@ -46,7 +48,23 @@ apparmor_enforce_profiles:
 
 The role only acts on profiles that are **loaded** (present in `aa-status`) and
 not already in the requested mode, so re-runs are no-ops and a mistyped /
-unloaded profile name is skipped rather than erroring.
+unloaded profile name is skipped rather than erroring; `changed_when` reflects
+the tool actually transitioning the profile, so a no-op is never reported as a
+change. Profiles installed by the package step are **reloaded before the
+audit** (a changed package set notifies the `Reload AppArmor` handler, flushed
+ahead of `aa-status`) so the audit and mode changes see the current profile
+set, not a stale one.
+
+### Disabled AppArmor is a failure, not a skip
+
+On a managed (non-container) host where the AppArmor LSM is **not active**
+(no `/sys/kernel/security/apparmor` — disabled at the kernel cmdline or
+securityfs not mounted), the role **fails** with remediation guidance rather
+than silently continuing — a MAC-enforcement role should not let a hardening
+run pass while MAC is off. The active check (apparmorfs) runs **before** any
+profile reload, so a disabled host is diagnosed cleanly rather than failing on
+a reload of the inactive service. Set `apparmor_require_enabled: false` for
+hosts that legitimately run without AppArmor.
 
 ## Key variables
 
@@ -58,6 +76,7 @@ unloaded profile name is skipped rather than erroring.
 | `apparmor_complain_profiles` | `[]` | Profiles to set to complain (log-only) mode |
 | `apparmor_enforce_profiles` | `[]` | Profiles to set to enforce mode |
 | `apparmor_audit` | `true` | Report enforce/complain/loaded counts (read-only) |
+| `apparmor_require_enabled` | `true` | Fail on a managed host if AppArmor proves to be disabled |
 | `apparmor_manage_runtime` | `true` | Manage service/profiles/audit (auto-off in container guests) |
 
 Full list in `defaults/main.yml`.
