@@ -42,7 +42,7 @@
     group: root
     mode: "0640"
   become: true
-  notify: Restart auditd
+  notify: Reload auditd configuration
   when:
     - log_forwarding_enabled
     - log_forwarding_audit
@@ -56,7 +56,7 @@
     group: root
     mode: "0640"
   become: true
-  notify: Restart auditd
+  notify: Reload auditd configuration
   when:
     - log_forwarding_enabled
     - log_forwarding_audit

@@ -55,6 +55,11 @@ users_faillock_deny: 5
 users_faillock_interval: 900
 users_faillock_unlock_time: 900
 users_faillock_even_deny_root: true
+# Intentionally shorter than users_faillock_unlock_time (900s): root is still
+# rate-limited (even_deny_root applies the same deny threshold) but recovers
+# after 60s, so a brute-force burst against root cannot lock out emergency
+# administrative access for the full 15-minute user window. (L7) Set equal to
+# users_faillock_unlock_time if a uniform lockout window is required.
 users_faillock_root_unlock_time: 60
 
 # Login restrictions

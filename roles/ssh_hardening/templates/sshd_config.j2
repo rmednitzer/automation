@@ -3,8 +3,9 @@
 
 Port {{ ssh_port }}
 AddressFamily any
-ListenAddress 0.0.0.0
-ListenAddress ::
+{% for addr in ssh_listen_addresses %}
+ListenAddress {{ addr }}
+{% endfor %}
 
 # Host keys
 HostKey /etc/ssh/ssh_host_ed25519_key
@@ -26,6 +27,7 @@ PermitRootLogin {{ ssh_permit_root_login }}
 StrictModes yes
 MaxAuthTries {{ ssh_max_auth_tries }}
 MaxSessions {{ ssh_max_sessions }}
+MaxStartups {{ ssh_max_startups }}
 
 PubkeyAuthentication {{ ssh_pubkey_authentication | ternary('yes', 'no') }}
 AuthorizedKeysFile .ssh/authorized_keys

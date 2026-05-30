@@ -1,0 +1,20 @@
+# Ansible managed - do not edit manually
+# /etc/profile.d/99-hardening.sh
+# CIS-aligned shell session hardening (umask + idle-session timeout).
+# POL-001 access control; GDPR Art 32 security of processing.
+
+# Restrictive default file-creation mask for interactive login shells.
+umask {{ users_umask }}
+
+{% if users_login_timeout | int > 0 %}
+# Idle-session timeout. Marked readonly and exported so an interactive user
+# cannot simply `unset TMOUT` to defeat the auto-logout (CIS 5.x). The whole
+# block is guarded so re-sourcing /etc/profile does not reassign (and error
+# on) the already-readonly variable: assigning to a readonly var fails
+# *before* any `|| true` on a later line could suppress it.
+if ! readonly -p 2>/dev/null | grep -q ' TMOUT='; then
+  TMOUT={{ users_login_timeout }}
+  readonly TMOUT
+  export TMOUT
+fi
+{% endif %}

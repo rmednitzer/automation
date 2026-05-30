@@ -8,9 +8,14 @@
     purge: true
   become: true
 
-- name: Install chrony
+- name: Install chrony and tzdata-legacy
   ansible.builtin.apt:
-    name: chrony
+    name:
+      # tzdata-legacy ships the right/ (leap-second-aware) zoneinfo tree on
+      # Ubuntu 24.04 (Noble); without it chrony's `leapsectz right/UTC`
+      # directive has no data and chronyd logs a failure. (L2)
+      - chrony
+      - tzdata-legacy
     state: present
     update_cache: true
     cache_valid_time: 3600
@@ -24,6 +29,11 @@
     group: root
     mode: "0644"
     backup: true
+    # ADR-001 F4.4: parse-check the rendered config before install. `-p`
+    # makes chronyd print the configuration and exit without starting the
+    # daemon, so a malformed directive fails the deploy instead of breaking
+    # time sync (CTL-003 forensic-timestamp integrity).
+    validate: "chronyd -p %s"
   become: true
   notify: Restart chrony
 

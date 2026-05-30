@@ -8,7 +8,10 @@ Centralised log forwarding via rsyslog (syslog) and `audisp-remote`
 - Installs and configures `rsyslog` for remote forwarding
 - Supports `tcp`, `udp`, and `relp` (reliable event-passing) transports
 - Optional TLS encryption for syslog transport via `rsyslog-gnutls`
-  (POL-003)
+  (POL-003). Set `log_forwarding_tls_permitted_peer` to pin the server
+  certificate identity (`x509/name`); when unset the client falls back to
+  `x509/certvalid` (any cert chaining to the CA) so TLS does not silently
+  fail for want of a permitted peer
 - Forwards audit events directly via `audisp-remote` on the Ubuntu
   24.04 `/etc/audit/plugins.d/` path, with the destination declared in
   `/etc/audit/audisp-remote.conf` (without that file the plugin sends
@@ -32,6 +35,7 @@ Centralised log forwarding via rsyslog (syslog) and `audisp-remote`
 | `log_forwarding_tls_ca_cert` | `""` | CA cert path (server validation) |
 | `log_forwarding_tls_cert` | `""` | Client cert path (optional mutual TLS) |
 | `log_forwarding_tls_key` | `""` | Client key path (optional mutual TLS) |
+| `log_forwarding_tls_permitted_peer` | `""` | Server cert subject/SAN to pin (`x509/name`); empty falls back to `x509/certvalid` |
 | `log_forwarding_audit` | `true` | Forward auditd events via `audisp-remote` |
 | `log_forwarding_audit_port` | `60` | `audisp-remote` destination port |
 | `log_forwarding_audit_transport` | `tcp` | `audisp-remote` transport (`tcp` or `krb5`) |

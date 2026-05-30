@@ -7,15 +7,20 @@
 #
 # Compliance alignment:
 #   - NIS2 Art 21.2(a)(e) — risk management, vulnerability handling
-#   - CRA Annex I Part I  — secure-by-default downloads (checksum-verified)
+#   - CRA Annex I Part I  — secure-by-default downloads (checksum-verified by
+#                           default; strict policy refuses unverified assets)
 #   - ISO 27001:2022 A.8.30 — supplier-relationship security
-#   - POL-002, CTL-002    — see roles/sre_toolchain/README.md
+#   - POL-002, CTL-002    — see roles/sre_toolchain/README.md and
+#                           docs/ADR-002-sre-toolchain-supply-chain.md
+#
+# Checksum verification is strict by default (a tool with no published
+# checksum is refused). Opt out with -e sre_toolchain_checksum_policy=best-effort.
 #
 # Usage:
 #   ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml
 #   ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml \
 #     -e sre_toolchain_github_token="$GITHUB_TOKEN" \
-#     -e sre_toolchain_checksum_policy=strict
+#     -e sre_toolchain_verify_signatures=true
 #
 # Inventory:
 #   Target a group such as `operators` or `workstations`. Override

@@ -7,16 +7,22 @@ for Ubuntu 24.04 LTS.
 
 - Configures password aging and complexity via PAM (`pam_pwquality`)
   and `/etc/login.defs`
-- Wires `pam_faillock` into `common-auth` and `common-account` and
-  templates `/etc/security/faillock.conf` so the lockout policy is
-  actually enforced
+- Wires `pam_faillock` into the PAM stack the Debian-sanctioned way —
+  shipping `/usr/share/pam-configs/faillock` and `…/faillock-notify`
+  profiles and enabling them with `pam-auth-update --package --enable`,
+  then asserting `pam_faillock.so` actually landed in the generated
+  `common-auth`/`common-account` — and templates
+  `/etc/security/faillock.conf` so the lockout policy is enforced
+  (see the lockout-risk note below)
 - Sets the stored-password hash to `YESCRYPT` (POL-003)
 - Hardens sudo with full I/O logging, lecture, restricted
   `secure_path`, and `visudo -cf` validation on the deployed dropin
 - Creates managed user accounts and deploys SSH keys via
   `ansible.posix.authorized_key`
 - Sets restrictive home directory permissions (`0750`)
-- Configures system-wide `umask` and shell login `TMOUT`
+- Ships a single `/etc/profile.d/99-hardening.sh` drop-in for `umask`
+  and a `readonly`+`export`ed shell login `TMOUT` (so it cannot be
+  `unset`), instead of editing `/etc/profile` in place
 - Sets `nologin` on unused system accounts
 - Locks the root account by default (administrative access via sudo)
 
@@ -47,3 +53,43 @@ for Ubuntu 24.04 LTS.
 | `users_lock_root` | `true` | Lock root account (`passwd -l`) |
 
 Full list in `defaults/main.yml`.
+
+## Account lockout (pam_faillock) — risk and recovery
+
+`pam_faillock` locks an account after `users_faillock_deny` failed
+authentications within `users_faillock_interval` seconds. With
+`users_faillock_even_deny_root: true`, root is subject to the same
+threshold (it unlocks faster — `users_faillock_root_unlock_time`, default
+60s — so a brute-force burst cannot hold administrative access locked for
+the full user window).
+
+**Lockout risk.** A misconfigured PAM stack or an aggressive threshold can
+lock out *all* interactive logins. This role enables faillock via
+`pam-auth-update` profiles (which survive later `pam-auth-update` runs) and
+**asserts** that `pam_faillock.so` is present in the generated stack, so a
+silent mis-wire fails the play rather than producing an unenforced or
+broken stack. The `users` Molecule scenario
+(`roles/users/molecule/default/`) runs in CI on a real Ubuntu 24.04
+container and **asserts** that `pam_faillock.so` lands in the generated
+`common-auth`/`common-account`. (The scenario was authored but not executed
+in the implementation sandbox, which had no Docker — so the first green run
+is the CI gate; validate on a lab host with break-glass access before a
+fleet rollout.)
+
+**Recovery (break-glass).** Keep a root console / cloud serial-console
+session, or a second already-authenticated session, open while applying
+changes. To clear a lockout:
+
+```bash
+# Show the failure tally for a user
+faillock --user <name>
+
+# Reset it (unlock)
+faillock --user <name> --reset
+```
+
+If logins are fully broken, boot to a root recovery shell (or use the
+provider serial console) and either run `faillock --reset`, or move
+`/usr/share/pam-configs/faillock*` aside and re-run `pam-auth-update
+--package` to regenerate a clean stack. Set `users_faillock_enabled: false`
+in inventory to disable lockout entirely.

@@ -30,8 +30,13 @@ logpath  = {{ jail.logpath }}
 {% if fail2ban_recidive_enabled %}
 # Recidive jail — escalating bans for persistent attackers
 # POL-002: P2 severity — suspected compromise pattern
+# recidive parses fail2ban's own logfile, so it must use a file backend
+# even when [DEFAULT] backend = systemd. Specifying `logpath` under the
+# systemd backend is invalid and stops the jail from loading, so pin
+# `backend = auto` here regardless of the global backend.
 [recidive]
 enabled  = true
+backend  = auto
 logpath  = /var/log/fail2ban.log
 banaction = %(banaction_allports)s
 bantime  = {{ fail2ban_recidive_bantime }}

@@ -29,6 +29,15 @@ ssh_max_sessions: 3
 ssh_login_grace_time: 20
 ssh_client_alive_interval: 300
 ssh_client_alive_count_max: 2
+# Connection throttling — CIS Ubuntu 24.04 §5 (5.1.x): start dropping new
+# unauthenticated connections at 10, 30% chance, hard cap 60. Overridable.
+ssh_max_startups: "10:30:60"
+
+# Addresses sshd listens on. Default: all IPv4 and IPv6 interfaces.
+# Override per host to bind sshd to specific management addresses.
+ssh_listen_addresses:
+  - "0.0.0.0"
+  - "::"
 
 # Protocol and ciphers (modern secure defaults)
 # POL-003: approved algorithms — no MD5, no SHA-1, AES-256 preferred

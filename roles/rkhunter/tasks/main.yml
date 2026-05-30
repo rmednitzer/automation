@@ -32,14 +32,47 @@
   become: true
   when: rkhunter_enabled
 
-- name: Update rkhunter file properties database
+# `rkhunter --propupd` re-baselines the known-good file-property database.
+# Running it on every converge silently absorbs any tampering into the
+# baseline — the very risk this role cites to justify disabling the apt
+# hook (M4b). Gate it to first install only via a marker file so the
+# baseline is captured once (on a known-clean host) and not refreshed on
+# every run. Re-baselining after a deliberate change is then an explicit
+# operator action (remove the marker, or run propupd by hand).
+- name: Check for rkhunter propupd baseline marker
+  ansible.builtin.stat:
+    path: /var/lib/rkhunter/.ansible-propupd-baseline
+  register: rkhunter_propupd_marker
+  become: true
+  when:
+    - rkhunter_enabled
+    - rkhunter_update_db
+
+- name: Update rkhunter file properties database (first install only)
   ansible.builtin.command:
     cmd: rkhunter --propupd
   become: true
   when:
     - rkhunter_enabled
     - rkhunter_update_db
+    - not rkhunter_propupd_marker.stat.exists
   changed_when: true
+
+- name: Record rkhunter propupd baseline marker
+  ansible.builtin.copy:
+    dest: /var/lib/rkhunter/.ansible-propupd-baseline
+    content: |
+      # Ansible managed — marks that `rkhunter --propupd` has established the
+      # file-property baseline once. Remove this file to allow a re-baseline
+      # on the next converge (do so only on a known-clean host).
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when:
+    - rkhunter_enabled
+    - rkhunter_update_db
+    - not rkhunter_propupd_marker.stat.exists
 
 - name: Deploy rkhunter cron job
   ansible.builtin.cron:

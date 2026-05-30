@@ -15,7 +15,18 @@ $DefaultNetstreamDriverKeyFile {{ log_forwarding_tls_key }}
 {% endif %}
 $DefaultNetstreamDriver gtls
 $ActionSendStreamDriverMode 1
+{% if log_forwarding_tls_permitted_peer | length > 0 %}
+# Pin the server certificate identity (POL-003). x509/name validates that
+# the server cert subject/SAN matches the permitted peer below.
 $ActionSendStreamDriverAuthMode x509/name
+$ActionSendStreamDriverPermittedPeer {{ log_forwarding_tls_permitted_peer }}
+{% else %}
+# No permitted peer configured: fall back to x509/certvalid (accept any
+# server cert that chains to the configured CA). Weaker than x509/name
+# because it does not pin the server identity — set
+# log_forwarding_tls_permitted_peer to upgrade. (POL-003)
+$ActionSendStreamDriverAuthMode x509/certvalid
+{% endif %}
 {% endif %}
 
 # Queue configuration for reliable delivery

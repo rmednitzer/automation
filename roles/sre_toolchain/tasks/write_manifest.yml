@@ -12,7 +12,13 @@
       arch: "{{ sre_toolchain_arch }}"
       os: "{{ sre_toolchain_os }}"
       checksum_policy: "{{ sre_toolchain_checksum_policy }}"
+      verify_signatures: "{{ sre_toolchain_verify_signatures | default(false) | bool }}"
+      # Back-compat: `tools` stays a flat {binary: tag} map so existing
+      # `jq '.tools[$b]'` reads keep working.
       tools: "{{ sre_toolchain_installed }}"
+      # H3c evidence: per-tool resolved tag + sha256 + asset + checksum and
+      # signature verification status (CTL-002). Keyed by primary binary.
+      evidence: "{{ sre_toolchain_evidence | default({}) }}"
 
 - name: "Write manifest"
   ansible.builtin.copy:

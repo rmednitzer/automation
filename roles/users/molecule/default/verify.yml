@@ -1,0 +1,103 @@
+---
+# Verify: assert the key outcomes of the users role. These assertions are
+# what would have caught H4 (faillock not actually wired into the PAM stack)
+# and M6 (TMOUT defeatable / umask edited in place).
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Stat the faillock pam-config profiles
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /usr/share/pam-configs/faillock
+        - /usr/share/pam-configs/faillock-notify
+      register: faillock_profiles
+
+    - name: Assert faillock pam-config profiles are installed
+      ansible.builtin.assert:
+        that:
+          - faillock_profiles.results | map(attribute='stat.exists') | min
+        fail_msg: "pam-config faillock profiles are missing"
+
+    - name: Read the generated common-auth stack
+      ansible.builtin.command:
+        cmd: grep -c pam_faillock.so /etc/pam.d/common-auth
+      register: common_auth_faillock
+      changed_when: false
+      failed_when: false
+
+    - name: Assert pam_faillock is wired into common-auth (H4)
+      ansible.builtin.assert:
+        that:
+          - common_auth_faillock.stdout | int > 0
+        fail_msg: >-
+          pam_faillock is NOT in common-auth — faillock.conf would be inert
+          and the account-lockout control silently unenforced (H4).
+
+    - name: Read the generated common-account stack
+      ansible.builtin.command:
+        cmd: grep -c pam_faillock.so /etc/pam.d/common-account
+      register: common_account_faillock
+      changed_when: false
+      failed_when: false
+
+    - name: Assert pam_faillock account check is wired into common-account
+      ansible.builtin.assert:
+        that:
+          - common_account_faillock.stdout | int > 0
+        fail_msg: "pam_faillock account check missing from common-account"
+
+    - name: Stat the shell-hardening profile drop-in
+      ansible.builtin.stat:
+        path: /etc/profile.d/99-hardening.sh
+      register: hardening_profile
+
+    - name: Assert the hardening profile drop-in exists (M6)
+      ansible.builtin.assert:
+        that:
+          - hardening_profile.stat.exists
+          - hardening_profile.stat.mode == '0644'
+        fail_msg: "/etc/profile.d/99-hardening.sh missing or wrong mode"
+
+    - name: Read the hardening profile content
+      ansible.builtin.slurp:
+        src: /etc/profile.d/99-hardening.sh
+      register: hardening_content
+
+    - name: Assert TMOUT is readonly+exported and umask is set (M6)
+      ansible.builtin.assert:
+        that:
+          - "'readonly TMOUT' in (hardening_content.content | b64decode)"
+          - "'export TMOUT' in (hardening_content.content | b64decode)"
+          - "'umask' in (hardening_content.content | b64decode)"
+        fail_msg: >-
+          TMOUT is not marked readonly/exported in the hardening drop-in,
+          so an interactive user could `unset TMOUT` to defeat auto-logout.
+
+    - name: Stat pwquality and faillock config
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/security/pwquality.conf
+        - /etc/security/faillock.conf
+      register: pam_confs
+
+    - name: Assert pwquality and faillock config are present
+      ansible.builtin.assert:
+        that:
+          - pam_confs.results | map(attribute='stat.exists') | min
+        fail_msg: "pwquality.conf or faillock.conf missing"
+
+    - name: Assert root account is locked
+      ansible.builtin.command:
+        cmd: passwd -S root
+      register: root_status
+      changed_when: false
+
+    - name: Verify root password status is locked (L/LK)
+      ansible.builtin.assert:
+        that:
+          - root_status.stdout.split() | length > 1
+          - root_status.stdout.split()[1] in ['L', 'LK']
+        fail_msg: "root account is not locked"

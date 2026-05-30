@@ -1,8 +1,56 @@
 ---
 # Auditd role handlers
+#
+# auditd.service ships RefuseManualStop=yes on both RHEL and Ubuntu, so
+# `systemctl restart|stop auditd` is refused ("Operation refused"). The
+# handlers below therefore avoid systemd for auditd and split the two
+# distinct change types:
+#
+#   - Audit RULES (rules.d) are (re)loaded with `augenrules --load`. The
+#     decision to load is based on the RUNNING kernel state (`auditctl -s`
+#     enabled flag), not the auditd_immutable config var: on a first
+#     converge (or any host not yet locked) the kernel is still mutable and
+#     the new rules load immediately; only when the kernel is already locked
+#     (enabled 2) does the handler defer to a reboot notice. (Review: gating
+#     on the config var alone left rules unenforced until reboot even when
+#     they could have loaded now.)
+#   - Auditd DAEMON config (auditd.conf) is reloaded via the SysV init
+#     path (`service auditd restart`), which is permitted where systemctl
+#     is refused because it does not go through the systemd unit's
+#     RefuseManualStop guard. (`systemctl kill --signal=SIGHUP auditd` is an
+#     alternative that reloads auditd.conf without a restart.)
+#
+# Refs: auditd(8), augenrules(8), auditd.conf(5) — "RefuseManualStop".
 
-- name: Restart auditd
-  ansible.builtin.systemd_service:
-    name: auditd
-    state: restarted
+# --- Audit rules (rules.d) -------------------------------------------------
+
+- name: Reload audit rules
+  ansible.builtin.shell: |
+    set -euo pipefail
+    enabled="$(auditctl -s 2>/dev/null | awk '/^enabled/ {print $2}')"
+    if [ "${enabled:-0}" = "2" ]; then
+      echo "AUDITD_LOCKED: kernel ruleset is immutable (enabled 2); the new"
+      echo "rules in /etc/audit/rules.d will load on the next reboot."
+      exit 0
+    fi
+    augenrules --load
+    echo "AUDITD_RULES_LOADED"
+  args:
+    executable: /bin/bash
+  register: auditd_rules_reload
+  changed_when: "'AUDITD_RULES_LOADED' in auditd_rules_reload.stdout"
+  become: true
+
+# --- Auditd daemon configuration (auditd.conf) -----------------------------
+
+# noqa command-instead-of-module: the service/systemd modules drive
+# systemctl, which refuses to act on auditd (RefuseManualStop=yes). The
+# SysV init wrapper is the supported reload path here; the module cannot
+# substitute for it.
+- name: Reload auditd configuration
+  ansible.builtin.command:  # noqa: command-instead-of-module
+    cmd: service auditd restart
+  register: auditd_service_reload
+  changed_when: auditd_service_reload.rc == 0
+  failed_when: auditd_service_reload.rc != 0
   become: true

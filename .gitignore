@@ -24,7 +24,12 @@ Thumbs.db
 # Secrets - never commit unencrypted secrets
 *.pem
 *.key
-!vault_*.yml
+# Vault convention: encrypted secret files are named `vault.yml`
+# (see inventories/<env>/group_vars/vault.yml). They ARE committed, but
+# only in ansible-vault-encrypted form — the `ansible-vault-encrypted`
+# pre-commit hook (.pre-commit-config.yaml) refuses any vault.yml whose
+# first line is not `$ANSIBLE_VAULT`. `.example` templates are plaintext
+# placeholders and are committed as-is.
 
 # Temporary files
 *.tmp

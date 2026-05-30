@@ -46,7 +46,8 @@ auditd_compliance_rules: true
 auditd_custom_rules: []
 
 # Make the audit configuration immutable (-e 2). CIS-recommended, but once
-# loaded the ruleset cannot change until reboot, and the Restart auditd
-# handler cannot live-reload rule changes. Keep true for compliance posture;
-# set false in environments where rules are tuned frequently.
+# loaded the ruleset cannot change until reboot, so the "Reload audit rules"
+# handler degrades to a reboot-required notice instead of live-loading new
+# rules (see handlers/main.yml). Keep true for compliance posture; set false
+# in environments where rules are tuned frequently.
 auditd_immutable: true

@@ -27,10 +27,20 @@ Rules enforced:
    "Framework Article — description" (hyphen or em dash accepted).
 6. Every role referenced under a control's ``roles`` list exists as a
    directory under ``roles/``.
+7. Reverse cross-reference (bidirectional). For every CTL-/POL- id and
+   every role:
+     a. if ``compliance-controls.yml`` lists a role under an id, that
+        role's ``defaults/main.yml`` compliance header must cite the id;
+     b. if a role's ``defaults/main.yml`` header cites a CTL-/POL- id, the
+        matching control/policy must list that role under ``roles`` (and
+        the id must exist).
+   This stops ``docs/compliance-controls.yml`` and the role headers from
+   silently drifting apart (see CLAUDE.md and ADR-001 finding F1.11).
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -44,6 +54,9 @@ REQUIRED_CONTROL_FIELDS = ("title", "description", "regulatory_mapping", "roles"
 REQUIRED_POLICY_FIELDS = ("title", "description", "regulatory_mapping")
 CONTROL_ID_PREFIX = "CTL-"
 POLICY_ID_PREFIX = "POL-"
+
+# Matches CTL-NNN / POL-NNN identifiers in a role's defaults header comments.
+COMPLIANCE_ID_RE = re.compile(r"\b(?:CTL|POL)-\d{3}\b")
 
 
 def fail(msg: str) -> None:
@@ -114,6 +127,63 @@ def validate_policies(policies: dict) -> None:
         validate_regulatory_mapping(pid, body["regulatory_mapping"])
 
 
+def parse_role_header_ids() -> dict[str, set[str]]:
+    """Map each role to the CTL-/POL- ids cited in its defaults header.
+
+    Reads ``roles/<role>/defaults/main.yml`` as text and extracts every
+    ``CTL-NNN`` / ``POL-NNN`` token (the compliance header is a comment
+    block, so we scan the raw file rather than the parsed YAML). Roles
+    without a ``defaults/main.yml`` contribute an empty set.
+    """
+    role_ids: dict[str, set[str]] = {}
+    for role_dir in sorted(p for p in ROLES_DIR.iterdir() if p.is_dir()):
+        defaults = role_dir / "defaults" / "main.yml"
+        ids: set[str] = set()
+        if defaults.is_file():
+            text = defaults.read_text(encoding="utf-8")
+            ids = set(COMPLIANCE_ID_RE.findall(text))
+        role_ids[role_dir.name] = ids
+    return role_ids
+
+
+def validate_reverse_mapping(
+    controls: dict, policies: dict, role_header_ids: dict[str, set[str]]
+) -> None:
+    """Enforce bidirectional role <-> CTL/POL consistency (rule 7)."""
+    # Forward: id -> set(roles) declared in compliance-controls.yml.
+    declared: dict[str, set[str]] = {}
+    for eid, body in {**controls, **policies}.items():
+        roles = body.get("roles") or []
+        declared[eid] = {r for r in roles if isinstance(r, str)}
+
+    # 7a: every declared (id, role) pair must be cited in the role header.
+    for eid, roles in declared.items():
+        for role in roles:
+            header = role_header_ids.get(role, set())
+            if eid not in header:
+                fail(
+                    f"reverse-map: {eid} lists role '{role}', but "
+                    f"roles/{role}/defaults/main.yml compliance header does "
+                    f"not cite {eid} (add it, or remove the role from {eid})"
+                )
+
+    # 7b: every id cited in a role header must be declared for that role.
+    for role, ids in role_header_ids.items():
+        for eid in sorted(ids):
+            if eid not in declared:
+                fail(
+                    f"reverse-map: roles/{role}/defaults/main.yml cites "
+                    f"{eid}, but no such control/policy exists in "
+                    f"docs/compliance-controls.yml"
+                )
+            if role not in declared[eid]:
+                fail(
+                    f"reverse-map: roles/{role}/defaults/main.yml cites "
+                    f"{eid}, but {eid}'s 'roles' list omits '{role}' "
+                    f"(add it, or drop the header reference)"
+                )
+
+
 def main() -> None:
     if not CONTROLS_FILE.exists():
         fail(f"controls file not found: {CONTROLS_FILE}")
@@ -138,9 +208,13 @@ def main() -> None:
     validate_controls(controls, known_roles)
     validate_policies(policies)
 
+    role_header_ids = parse_role_header_ids()
+    validate_reverse_mapping(controls, policies, role_header_ids)
+
     print(
         f"OK: {len(controls)} control(s), {len(policies)} policy(ies); "
-        f"roles cross-referenced against {len(known_roles)} role(s)."
+        f"roles cross-referenced against {len(known_roles)} role(s); "
+        f"bidirectional header cross-references consistent."
     )
 
 

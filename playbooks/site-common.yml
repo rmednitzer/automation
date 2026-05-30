@@ -28,8 +28,11 @@
 #   6. fail2ban        - Intrusion prevention (after firewall)
 #   7. aide            - File integrity monitoring
 #   8. rkhunter        - Rootkit detection
-#   9. log_forwarding  - Centralised log collection
-#  10. auditd          - Audit logging (last, to capture all changes)
+#   9. auditd          - Audit logging (installs auditd + audispd-plugins and
+#                        creates /etc/audit/plugins.d — must precede
+#                        log_forwarding, which drops audisp-remote configs there)
+#  10. log_forwarding  - Centralised log collection (rsyslog + auditd → SIEM;
+#                        depends on the auditd package and plugins.d directory)
 
 - name: Apply common system management to all hosts
   hosts: all
@@ -83,13 +86,13 @@
         - rkhunter
         - rootkit
         - compliance
-    - role: log_forwarding
-      tags:
-        - log-forwarding
-        - logging
-        - compliance
     - role: auditd
       tags:
         - auditd
         - audit
+        - compliance
+    - role: log_forwarding
+      tags:
+        - log-forwarding
+        - logging
         - compliance

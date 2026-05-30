@@ -27,7 +27,7 @@ to the regulatory frameworks above.
 
 ### Prerequisites
 
-- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) ≥ 2.15
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) ≥ 2.18 (`community.general` 13.x requires `ansible-core` ≥ 2.18)
 - Python ≥ 3.10
 
 ### Setup
@@ -63,7 +63,7 @@ ansible-playbook -i inventories/<env>/hosts playbooks/site-common.yml --tags ssh
 | `ufw` | UFW firewall, default-deny, IPv6, rate limiting | POL-001, NIS2 Art 21.2(e), GDPR Art 32 |
 | `fail2ban` | Intrusion prevention with `recidive` jail | POL-002, NIS2 Art 21.2(b) |
 | `aide` | File integrity monitoring | CTL-002, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 32 |
-| `rkhunter` | Rootkit detection (hidden procs, kernel modules, signatures) | POL-002, NIS2 Art 21.2(a)(b), GDPR Art 32, ISO 27001 A.8.7 |
+| `rkhunter` | Rootkit detection (known-rootkit signatures, file-property integrity, suspicious-file scans; noisy host-state probes disabled — see role README) | POL-002, NIS2 Art 21.2(a)(b), GDPR Art 32, ISO 27001 A.8.7 |
 | `log_forwarding` | Central log forwarding via rsyslog (TLS) + `audisp-remote` | CTL-002, CTL-003, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 5(2) |
 | `auditd` | System audit logging (CIS + NIS2/GDPR rules) | CTL-002, CTL-003, POL-004, POL-005, GDPR Art 5(2), NIS2 Art 21.2(a) |
 | `sre_toolchain` | SRE/Platform/Security toolchain installer (kind, flux, trivy, sops, cosign, opa, k6, …) for operator hosts | NIS2 Art 21.2(a)(e), CRA Annex I, ISO 27001 A.8.30, POL-002, CTL-002 |
@@ -124,6 +124,8 @@ lint rules). Each pass produces an ADR under [`docs/`](docs/):
 | ADR | Date | Topic |
 |-----|------|-------|
 | [ADR-001](docs/ADR-001-code-validation-baseline.md) | 2026-05-24 | Code validation baseline — index, findings, accepted design tensions, doc-parity policy |
+| [ADR-002](docs/ADR-002-sre-toolchain-supply-chain.md) | 2026-05-30 | `sre_toolchain` supply-chain hardening — strict checksum default, optional cosign signatures, optional tag pinning, evidence manifest |
+| [ADR-003](docs/ADR-003-runtime-correctness-and-cis-baseline.md) | 2026-05-30 | Runtime-correctness fixes (auditd restart, role order, fail2ban/rsyslog) and CIS baseline extension; pam_faillock via pam-config profiles |
 
 Static analysis is enforced on every push and pull request by
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml):

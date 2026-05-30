@@ -9,11 +9,14 @@
 
 - name: Set default locale
   ansible.builtin.copy:
+    # Set LANG + LANGUAGE only. LC_ALL is an override of last resort that
+    # forces every category and masks per-session LC_* settings; pinning it
+    # system-wide is heavy-handed and discouraged. LANG provides the default
+    # all categories fall back to. (L4)
     dest: /etc/default/locale
     content: |
       LANG={{ common_locale }}
       LANGUAGE={{ common_language }}
-      LC_ALL={{ common_locale }}
     owner: root
     group: root
     mode: "0644"

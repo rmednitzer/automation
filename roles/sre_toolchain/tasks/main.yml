@@ -37,14 +37,18 @@
   tags:
     - sre-toolchain
 
+# `command -v` is a shell builtin, so the original `command:` invocation
+# (no shell) returned rc!=0 for every item and aborted the play. Use
+# `which` (an external binary from debianutils, Essential on Ubuntu) under
+# the command module instead — a real executable resolves correctly and
+# keeps lint clean. Checking PATH needs no root, so no become.
 - name: Verify required commands are present on the target host
   ansible.builtin.command:
-    cmd: "command -v {{ item }}"
+    cmd: "which {{ item }}"
   loop: "{{ sre_toolchain_required_commands }}"
   register: sre_toolchain_dep_check
   changed_when: false
   failed_when: sre_toolchain_dep_check.rc != 0
-  become: true
   tags:
     - sre-toolchain
 
@@ -84,48 +88,73 @@
 - name: Reset run-level counters
   ansible.builtin.set_fact:
     sre_toolchain_installed: {}
+    sre_toolchain_evidence: {}
     sre_toolchain_ok: 0
-    sre_toolchain_skip: 0
+    sre_toolchain_skipped: 0
     sre_toolchain_fail: 0
   tags:
     - sre-toolchain
 
-- name: Install regular toolchain entries
+# When signature verification is enabled, cosign must exist on the target
+# before any tool is verified. Bootstrap it first from the catalogue entry
+# (its own checksum is still enforced by the install path). H2/H3b.
+- name: Bootstrap cosign before signature verification
   ansible.builtin.include_tasks: install_tool.yml
   vars:
-    tool: "{{ item }}"
-  loop: "{{ sre_toolchain_tools }}"
-  loop_control:
-    label: "{{ item.name }}"
-  when: (item.name if item.name is string else item.name | first) not in sre_toolchain_skip
+    tool: "{{ sre_toolchain_tools | selectattr('name', 'equalto', 'cosign') | first }}"
+  when:
+    - sre_toolchain_verify_signatures | bool
+    - "'cosign' not in sre_toolchain_skip"
   tags:
     - sre-toolchain
 
-- name: Install kubectx/kubens (source tarball, special-cased)
-  ansible.builtin.include_tasks: install_kubectx.yml
-  when: "'kubectx' not in sre_toolchain_skip"
+- name: Resolve cosign binary path for verification
+  ansible.builtin.set_fact:
+    sre_toolchain_cosign_bin: "{{ sre_toolchain_dest_dir }}/cosign"
+  when: sre_toolchain_verify_signatures | bool
   tags:
     - sre-toolchain
 
-- name: Write installed-versions manifest
-  ansible.builtin.include_tasks: write_manifest.yml
-  when: sre_toolchain_installed | length > 0
+# Install, write evidence, and report inside a block so the scratch
+# directory is always removed afterwards (M10), even if a tool fails and
+# the play aborts below. Downloaded archives may contain secrets-adjacent
+# material and should not linger under /var/tmp.
+- name: Install toolchain, write manifest, and report
   tags:
     - sre-toolchain
+  block:
+    - name: Install regular toolchain entries
+      ansible.builtin.include_tasks: install_tool.yml
+      vars:
+        tool: "{{ item }}"
+      loop: "{{ sre_toolchain_tools }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: (item.name if item.name is string else item.name | first) not in sre_toolchain_skip
 
-- name: Summarise the run
-  ansible.builtin.debug:
-    msg: >-
-      sre_toolchain summary: installed={{ sre_toolchain_ok }}
-      skipped={{ sre_toolchain_skip }} failed={{ sre_toolchain_fail }}
-  tags:
-    - sre-toolchain
+    - name: Install kubectx/kubens (source tarball, special-cased)
+      ansible.builtin.include_tasks: install_kubectx.yml
+      when: "'kubectx' not in sre_toolchain_skip"
 
-- name: Fail the play when any tool failed to install
-  ansible.builtin.fail:
-    msg: >-
-      {{ sre_toolchain_fail }} tool(s) failed to install. Review the
-      preceding tasks for the specific failures.
-  when: sre_toolchain_fail | int > 0
-  tags:
-    - sre-toolchain
+    - name: Write installed-versions manifest
+      ansible.builtin.include_tasks: write_manifest.yml
+      when: sre_toolchain_installed | length > 0
+
+    - name: Summarise the run
+      ansible.builtin.debug:
+        msg: >-
+          sre_toolchain summary: installed={{ sre_toolchain_ok }}
+          skipped={{ sre_toolchain_skipped }} failed={{ sre_toolchain_fail }}
+
+    - name: Fail the play when any tool failed to install
+      ansible.builtin.fail:
+        msg: >-
+          {{ sre_toolchain_fail }} tool(s) failed to install. Review the
+          preceding tasks for the specific failures.
+      when: sre_toolchain_fail | int > 0
+  always:
+    - name: Remove the toolchain scratch directory
+      ansible.builtin.file:
+        path: "{{ sre_toolchain_tmp_dir }}"
+        state: absent
+      become: true

@@ -20,7 +20,7 @@
     mode: "0640"
     backup: true
   become: true
-  notify: Restart auditd
+  notify: Reload auditd configuration
 
 - name: Deploy audit rules
   ansible.builtin.template:
@@ -30,7 +30,9 @@
     group: root
     mode: "0640"
   become: true
-  notify: Restart auditd
+  # The handler loads the rules now if the kernel is still mutable, or emits
+  # a reboot notice if it is already locked (enabled 2).
+  notify: Reload audit rules
 
 - name: Enable and start auditd
   ansible.builtin.systemd_service:

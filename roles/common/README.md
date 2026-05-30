@@ -8,8 +8,11 @@ Base system management and hardening for Ubuntu 24.04 LTS (Noble Numbat).
 - Sets timezone (UTC by default — CTL-003 forensic correlation) and
   locale
 - Applies a sysctl baseline (network, VM, file-handles, hardlink /
-  symlink protection, IPv4 / IPv6 hardening, IPv6 privacy extensions
-  per GDPR Art 5(1)(c))
+  symlink protection, IPv4 / IPv6 hardening, IP-forwarding and
+  secure-redirects disabled, `kexec` / line-discipline-autoload /
+  `perf_event_paranoid` restrictions per CIS, IPv6 privacy extensions
+  per GDPR Art 5(1)(c)). Router/NAT and profiling hosts override the
+  relevant keys.
 - Hardens the kernel: blacklists unused filesystem and network modules,
   disables core dumps, enables ASLR, restricts kernel pointer / dmesg
   / unprivileged BPF / unprivileged user namespaces / `ptrace_scope`

@@ -1,0 +1,9 @@
+---
+# Converge: apply the users role to the molecule container.
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Include the users role
+      ansible.builtin.include_role:
+        name: users

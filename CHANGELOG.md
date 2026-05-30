@@ -9,6 +9,73 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 remediation pass — runtime-correctness, security-baseline, and
+  supply-chain hardening from the completed code audit. New ADRs:
+  [ADR-002](docs/ADR-002-sre-toolchain-supply-chain.md) (supply-chain) and
+  [ADR-003](docs/ADR-003-runtime-correctness-and-cis-baseline.md)
+  (runtime-correctness + CIS baseline).
+  - **Runtime defects fixed (no posture weakening):**
+    - auditd restart handlers no longer use systemd (`auditd.service` ships
+      `RefuseManualStop=yes`): rules reload via `augenrules --load`
+      (no-op + reboot notice under immutability), config reloads via the
+      SysV `service auditd restart` path; applied in both `auditd` and
+      `log_forwarding`. CTL-002, CTL-003, POL-004, POL-005. (C1)
+    - `playbooks/site-common.yml` runs `auditd` before `log_forwarding` so
+      the audit package and `/etc/audit/plugins.d/` exist before the
+      audisp-remote configs are written. CTL-002, CTL-003. (C2)
+    - `sre_toolchain` dependency gate uses `which` instead of the shell
+      builtin `command -v` under the `command` module. (C3)
+    - fail2ban `[recidive]` pins `backend = auto` so it loads under the
+      systemd backend. POL-002. (H1)
+    - rsyslog TLS forwarding emits `$ActionSendStreamDriverPermittedPeer`
+      via new `log_forwarding_tls_permitted_peer` (falls back to
+      `x509/certvalid` when unset). POL-003. (H6)
+    - `validate:` added to the chrony (`chronyd -p`) and fail2ban
+      (`fail2ban-client -t`) config deploys. CTL-003, POL-002. (M5)
+  - **Behaviour change — supply-chain (ADR-002):** `sre_toolchain`
+    `checksum_policy` now defaults to **`strict`** (refuse unverified
+    installs); adds optional keyless cosign signature verification
+    (`sre_toolchain_verify_signatures` / `_require_signatures`) and optional
+    per-tool tag pinning (`tag:`/`version:` in `vars/main.yml`); the
+    evidence manifest now records resolved tag + SHA256 + verification
+    outcomes; scratch dir always cleaned up. CTL-002, POL-002. `kubectx`
+    (no upstream checksum) is now skipped by default. (H2, H3, M10)
+  - **Behaviour change — account lockout (ADR-003):** `users` wires
+    `pam_faillock` via `/usr/share/pam-configs/` profiles +
+    `pam-auth-update` (idempotent, survives later `pam-auth-update` runs)
+    instead of exact-string `pamd` edits, with a verification assertion and
+    a documented lockout-recovery procedure. POL-001. (H4)
+  - **Vault convention (H5):** encrypted secret files are named `vault.yml`
+    (committed only encrypted), enforced by a new
+    `scripts/check-vault-encrypted.sh` pre-commit guard; `.gitignore` and
+    `CLAUDE.md` corrected; `vault_`-prefixed *variables* are the reviewer
+    signal.
+  - **CIS baseline extension (overridable, ADR-003):** sshd `MaxStartups`
+    + variable `ListenAddress` (M1); sysctl `ip_forward`/forwarding/
+    `secure_redirects` = 0 and `kexec_load_disabled`/`ldisc_autoload`/
+    `perf_event_paranoid` (M2); auditd `execve` rules + `plugins.d` watch
+    (M3); rkhunter `--propupd` gated to first install (M4); `TMOUT`+`umask`
+    via `/etc/profile.d/99-hardening.sh` drop-in (M6). CTL-002, CTL-003,
+    POL-001, POL-004.
+  - **CI / tooling:** `requirements-dev.txt` pins installable
+    `ansible-core==2.19.10` (the `2.21.0` pin did not exist on PyPI, breaking
+    every CI job); all roles' `min_ansible_version` and README raised to
+    `≥ 2.18` (community.general 13.x floor) (M9). `ci.yml` gains
+    `concurrency`, per-job `timeout-minutes`, pip caching, and a `molecule`
+    matrix job (M8). First Molecule scenario added for `users`
+    (`roles/users/molecule/default/`) + `make molecule`/`molecule-deps`
+    (M7, LIMITATIONS L2/L3/L5; **unrun here — no Docker**).
+  - **Docs / evidence (N1, N2, L4, L7, L8):** `galaxy-sbom.py` adds a
+    deterministic `serialNumber` (urn:uuid) and real tool version;
+    `validate-compliance-controls.py` now enforces the **bidirectional**
+    role↔CTL/POL header mapping (`sre_toolchain` added to CTL-002 and
+    POL-002 `roles`); `common` locale no longer pins `LC_ALL`; `users`
+    root-unlock-time difference documented; CTL-001 "MFA" wording softened
+    (MFA delivered by the IdP, out of host-level scope). CTL-001, CTL-002,
+    POL-002.
+  - **Cross-repo:** `LICENSE` replaced with the canonical Apache-2.0 from
+    `infra` (the prior copy was missing "reasonable and customary use in"
+    from §6 Trademarks).
 - CI supply-chain posture from the 2026-05-27 assurance engagement
   (Batch D); no role behaviour change, no
   `docs/compliance-controls.yml` change, no CTL- / POL- IDs touched.

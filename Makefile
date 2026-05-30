@@ -3,7 +3,10 @@
 
 SHELL := /usr/bin/env bash
 
-.PHONY: help install lint syntax-check validate-compliance check molecule clean
+.PHONY: help install lint syntax-check validate-compliance check molecule molecule-deps clean
+
+# Roles that ship a molecule/default scenario.
+MOLECULE_ROLES := users
 
 PLAYBOOKS := $(wildcard playbooks/*.yml)
 
@@ -30,9 +33,14 @@ validate-compliance:  ## Schema-check docs/compliance-controls.yml + verify role
 
 check: lint syntax-check validate-compliance  ## Lint + syntax-check + compliance schema.
 
-molecule:  ## Placeholder for the upcoming Molecule wave (see LIMITATIONS.md L2).
-	@echo "Molecule scenarios are not yet in tree. See LIMITATIONS.md L2."
-	@exit 1
+molecule-deps:  ## Install Molecule + the Docker driver.
+	pip install "molecule>=6" "molecule-plugins[docker]" docker
+
+molecule:  ## Run Molecule scenarios (requires Docker). Currently: users.
+	@for role in $(MOLECULE_ROLES); do \
+		echo "== molecule test: $$role =="; \
+		( cd roles/$$role && molecule test ) || exit 1; \
+	done
 
 clean:  ## Remove transient caches.
 	rm -rf .ansible/ .yamllint.cache .pytest_cache

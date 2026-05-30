@@ -1,0 +1,13 @@
+Name: Enforce failed login attempt counter (pam_faillock authfail/account)
+Default: yes
+Priority: 64
+Auth-Type: Primary
+Auth:
+	[default=die]	pam_faillock.so authfail
+Auth-Initial:
+	[default=die]	pam_faillock.so authfail
+Account-Type: Primary
+Account:
+	required	pam_faillock.so
+Account-Initial:
+	required	pam_faillock.so
