@@ -57,12 +57,14 @@ set, not a stale one.
 
 ### Disabled AppArmor is a failure, not a skip
 
-On a managed (non-container) host where `aa-status` reports AppArmor is **not
-active** (disabled at the kernel cmdline, no apparmorfs, or no policy loaded),
-the role **fails** with remediation guidance rather than silently continuing —
-a MAC-enforcement role should not let a hardening run pass while MAC is off.
-Set `apparmor_require_enabled: false` for hosts that legitimately run without
-AppArmor.
+On a managed (non-container) host where the AppArmor LSM is **not active**
+(no `/sys/kernel/security/apparmor` — disabled at the kernel cmdline or
+securityfs not mounted), the role **fails** with remediation guidance rather
+than silently continuing — a MAC-enforcement role should not let a hardening
+run pass while MAC is off. The active check (apparmorfs) runs **before** any
+profile reload, so a disabled host is diagnosed cleanly rather than failing on
+a reload of the inactive service. Set `apparmor_require_enabled: false` for
+hosts that legitimately run without AppArmor.
 
 ## Key variables
 

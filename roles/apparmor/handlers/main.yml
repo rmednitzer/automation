@@ -2,13 +2,14 @@
 # AppArmor handlers.
 
 # Reload the AppArmor policy (re-parses /etc/apparmor.d) so profiles added by
-# the package tasks are loaded. Skipped in container guests
-# (apparmor_runtime_managed, set in tasks/main.yml) where the host kernel owns
-# the policy. Flushed before the audit (tasks/main.yml) so aa-status reflects
-# newly installed profiles.
+# the package tasks are loaded. Gated on apparmor_active (set in tasks/main.yml
+# from apparmorfs): skipped in container guests AND on hosts where the LSM is
+# disabled, since the packaged unit asserts on /sys/kernel/security/apparmor and
+# reloading an inactive unit would fail. Flushed before the audit so aa-status
+# reflects newly installed profiles.
 - name: Reload AppArmor
   ansible.builtin.systemd_service:
     name: apparmor
     state: reloaded
   become: true
-  when: apparmor_runtime_managed | default(false)
+  when: apparmor_active | default(false)
