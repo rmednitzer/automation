@@ -1,0 +1,19 @@
+---
+# kernel_lockdown handlers.
+
+# Regenerate /boot/grub/grub.cfg so the lockdown= cmdline change (added/removed
+# via the grub.d drop-in) is written into the boot entries. Takes effect on the
+# next boot.
+- name: Regenerate grub configuration
+  ansible.builtin.command:
+    cmd: update-grub
+  become: true
+  changed_when: true
+
+# A kernel command-line change only applies after a reboot, and the role never
+# reboots a host itself. Surface that clearly when the drop-in changed.
+- name: Kernel lockdown reboot required
+  ansible.builtin.debug:
+    msg: >-
+      Kernel lockdown set to '{{ kernel_lockdown_level }}' on the GRUB command
+      line. REBOOT required to activate it (the role does not reboot hosts).

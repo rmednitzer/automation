@@ -63,6 +63,16 @@
         - hardening
         - security
         - compliance
+    # Kernel lockdown LSM: audit the current level (and, opt-in, set it via the
+    # GRUB cmdline). Host-kernel layer beneath the MAC/service confinement.
+    # Safe-by-default — audit-only until kernel_lockdown_level is set, and never
+    # reboots (a cmdline change is flagged as reboot-required).
+    - role: kernel_lockdown
+      tags:
+        - kernel-lockdown
+        - hardening
+        - security
+        - compliance
     - role: users
       tags:
         - users

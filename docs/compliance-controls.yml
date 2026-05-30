@@ -169,6 +169,7 @@ policies:
       - common
       - auditd
       - systemd_hardening
+      - kernel_lockdown
 
   POL-005:
     title: "Change management policy"

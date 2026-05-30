@@ -9,6 +9,20 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `kernel_lockdown` role — kernel lockdown LSM (POL-004).**
+  Defense-in-depth part 2. Audits the current lockdown level from
+  `/sys/kernel/security/lockdown` (read-only) and, **opt-in**, sets
+  `integrity` / `confidentiality` by appending `lockdown=<level>` to the kernel
+  command line via an `/etc/default/grub.d/99-lockdown.cfg` drop-in (composing
+  onto `GRUB_CMDLINE_LINUX`, not editing `/etc/default/grub`), regenerating
+  `grub.cfg`. Safe-by-default: `kernel_lockdown_level` is empty (audit only, no
+  cmdline change) and the role **never reboots** — a level change is flagged
+  reboot-required and the audit shows current-vs-desired. Container-guest aware
+  (`kernel_lockdown_runtime_managed`; lockdown is host-kernel only). Added to
+  `site-common.yml` after `apparmor` and mapped to POL-004 in
+  `docs/compliance-controls.yml`. CRA Annex I Part I, NIS2 Art 21.2(e),
+  GDPR Art 5(1)(f) / Art 25, ISO 27001:2022 A.8.27.
+
 - 2026-05-30 **New `apparmor` role — Mandatory Access Control / LSM (POL-001).**
   First of the defense-in-depth series. Ensures AppArmor (Ubuntu's default MAC)
   is installed (`apparmor` + `apparmor-utils`, plus the `apparmor-profiles` /

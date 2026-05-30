@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# Kernel lockdown LSM (roles/kernel_lockdown). POL-004.
+# Appends lockdown={{ kernel_lockdown_level }} to the kernel command line.
+# Sourced by grub-mkconfig after /etc/default/grub, so GRUB_CMDLINE_LINUX is
+# already set here and we compose onto it. REQUIRES A REBOOT to take effect.
+GRUB_CMDLINE_LINUX="${GRUB_CMDLINE_LINUX} lockdown={{ kernel_lockdown_level }}"
