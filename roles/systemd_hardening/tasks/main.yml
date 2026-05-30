@@ -1,0 +1,92 @@
+---
+# systemd service hardening: per-unit sandbox drop-ins + a read-only
+# `systemd-analyze security` audit. POL-004 (leak prevention / least privilege).
+
+- name: Apply systemd service hardening
+  when: systemd_hardening_enabled | bool
+  block:
+    # Only a container GUEST skips runtime management (the host systemd owns
+    # service sandboxing there and a restart/daemon-reload can fail); a
+    # container/LXC *host* is managed normally. Drop-ins are written regardless
+    # (config-as-code), mirroring the auditd / dns roles.
+    - name: Determine whether to manage the systemd runtime
+      ansible.builtin.set_fact:
+        systemd_hardening_runtime_managed: >-
+          {{ systemd_hardening_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Assert opted-in units reference a known hardening profile
+      ansible.builtin.assert:
+        that:
+          - item.value.profile is not defined or item.value.profile in systemd_hardening_profiles
+        fail_msg: >-
+          Unit '{{ item.key }}' references unknown hardening profile
+          '{{ item.value.profile | default("") }}'. Valid profiles:
+          {{ systemd_hardening_profiles.keys() | list }}.
+        quiet: true
+      loop: "{{ systemd_hardening_units | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Ensure drop-in directories exist for opted-in units
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item.value.unit | default(item.key ~ '.service') }}.d"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+      loop: "{{ systemd_hardening_units | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Deploy systemd hardening drop-ins for opted-in units
+      ansible.builtin.template:
+        src: hardening.conf.j2
+        dest: "/etc/systemd/system/{{ item.value.unit | default(item.key ~ '.service') }}.d/10-hardening.conf"
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      loop: "{{ systemd_hardening_units | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      notify:
+        - Reload systemd manager configuration
+        - Restart hardened units
+
+    # Read-only exposure report. systemctl-cat guards skip units with no unit
+    # file on this host; without a threshold the command always returns 0
+    # (report only), with one it returns non-zero when exposure is exceeded.
+    - name: Audit service exposure with systemd-analyze security
+      ansible.builtin.shell:
+        cmd: |
+          rc=0
+          for unit in {{ systemd_hardening_audit_units | map('quote') | join(' ') }}; do
+            if ! systemctl cat "$unit" >/dev/null 2>&1; then
+              echo "SKIP ${unit} (no unit file on this host)"
+              continue
+            fi
+            systemd-analyze security --no-pager {{ _threshold_arg }} "$unit" || rc=$?
+          done
+          exit "$rc"
+        executable: /bin/bash
+      vars:
+        _threshold_arg: "{{ ('--threshold=' + systemd_hardening_audit_threshold) if (systemd_hardening_audit_threshold | length > 0) else '' }}"
+      register: systemd_hardening_audit_result
+      changed_when: false
+      failed_when: systemd_hardening_audit_result.rc != 0
+      become: true
+      when:
+        - systemd_hardening_audit | bool
+        - systemd_hardening_runtime_managed | bool
+
+    - name: Show the systemd-analyze security report (with -v)
+      ansible.builtin.debug:
+        var: systemd_hardening_audit_result.stdout_lines
+        verbosity: 1
+      when:
+        - systemd_hardening_audit | bool
+        - systemd_hardening_runtime_managed | bool
+        - systemd_hardening_audit_result is defined

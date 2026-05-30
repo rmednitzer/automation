@@ -167,6 +167,7 @@ policies:
     roles:
       - common
       - auditd
+      - systemd_hardening
 
   POL-005:
     title: "Change management policy"

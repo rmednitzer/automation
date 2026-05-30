@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+# systemd hardening drop-in for {{ item.value.unit | default(item.key ~ '.service') }}
+# Managed by roles/systemd_hardening (POL-004). Profile: {{ item.value.profile | default('(overrides only)') }}.
+# Do not edit by hand — change systemd_hardening_units / _profiles and re-run.
+[Service]
+{% set _profile = systemd_hardening_profiles[item.value.profile] if (item.value.profile is defined and item.value.profile in systemd_hardening_profiles) else {} %}
+{% set _directives = _profile | combine(item.value.overrides | default({})) %}
+{% for _key, _value in _directives | dictsort %}
+{{ _key }}={{ _value }}
+{% endfor %}
