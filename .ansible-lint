@@ -7,6 +7,12 @@ exclude_paths:
   - collections/
   - .venv/
   - venv/
+  # ansible-vault-encrypted secrets files are named `vault.yml` (CLAUDE.md
+  # "Secrets management"); their ciphertext is not parseable YAML. The
+  # plaintext `vault.yml.example` templates keep being linted.
+  - inventories/development/group_vars/vault.yml
+  - inventories/production/group_vars/vault.yml
+  - inventories/staging/group_vars/vault.yml
 
 skip_list:
   - yaml[line-length]

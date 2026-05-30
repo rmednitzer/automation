@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rmednitzer/automation/docs/schemas/compliance-controls.schema.json",
+  "title": "automation compliance controls and policies",
+  "description": "Formal JSON Schema (draft 2020-12) for docs/compliance-controls.yml — the internal control catalog (CTL) and ISMS policy set (POL). Mirrors the structural rules enforced by scripts/validate-compliance-controls.py (LIMITATIONS.md L6). The script additionally enforces runtime rules a schema cannot express: (a) at least one of controls/policies is non-empty, (b) every referenced role directory exists under roles/, and (c) bidirectional role<->id cross-references with each role's defaults/main.yml header. Validation against this schema is performed by the script when the optional `jsonschema` package is installed; otherwise the structural check runs and this file stands as the published contract.",
+  "type": "object",
+  "minProperties": 1,
+  "properties": {
+    "controls": {
+      "type": "object",
+      "description": "Control catalog. Keys are CTL-NNN identifiers.",
+      "propertyNames": {
+        "pattern": "^CTL-[0-9]{3}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/control"
+      }
+    },
+    "policies": {
+      "type": "object",
+      "description": "ISMS policy set. Keys are POL-NNN identifiers.",
+      "propertyNames": {
+        "pattern": "^POL-[0-9]{3}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/policy"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "regulatoryMapping": {
+      "type": "array",
+      "description": "Non-empty list of 'Framework Article — description' strings (hyphen or em dash separator).",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "(—| - |- )"
+      }
+    },
+    "roles": {
+      "type": "array",
+      "description": "Roles that implement this control/policy. Each must exist as a directory under roles/ (enforced by the validator script). Required on controls; optional on policies.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "control": {
+      "type": "object",
+      "description": "A single CTL- control entry.",
+      "required": ["title", "description", "regulatory_mapping", "roles"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regulatory_mapping": {
+          "$ref": "#/$defs/regulatoryMapping"
+        },
+        "roles": {
+          "$ref": "#/$defs/roles"
+        },
+        "retention_tiers": {
+          "type": "object",
+          "description": "Optional retention-tier map (days as integer or string), e.g. for CTL-002 evidence retention.",
+          "additionalProperties": {
+            "type": ["integer", "string"]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "policy": {
+      "type": "object",
+      "description": "A single POL- policy entry.",
+      "required": ["title", "description", "regulatory_mapping"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "regulatory_mapping": {
+          "$ref": "#/$defs/regulatoryMapping"
+        },
+        "roles": {
+          "$ref": "#/$defs/roles"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
