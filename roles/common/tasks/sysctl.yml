@@ -1,42 +1,77 @@
 ---
-# Sysctl kernel tuning tasks
+# Sysctl kernel tuning tasks.
+#
+# Robust to ABSENT keys end-to-end. Some KSPP/CIS knobs do not exist on every
+# kernel/container: they are compiled out (no CONFIG_*) or namespaced away
+# inside containers, so their /proc/sys/<path> is missing. Writing such a key
+# to the drop-in and then `sysctl -p`-reloading it fails the run. We therefore
+# never trust the static maps blindly:
+#
+#   1. Probe /proc/sys/<path> for EVERY key (the always-present main set AND
+#      the explicitly-optional set). A key whose path is absent is treated
+#      identically in both: it is not applied.
+#   2. Remove any absent key from the persisted drop-in FIRST, with
+#      reload:false, so a stale line left by a previous boot (when the knob
+#      existed) cannot break the later reload.
+#   3. Apply only the present keys, writing the drop-in and reloading LAST.
+#
+# Net effect: /etc/sysctl.d/90-ansible.conf only ever contains keys that
+# currently exist, so the role converges cleanly across the 24.04 (kernel
+# 6.8) / 26.04 (kernel 7.0) matrix and on stripped containers — and a host
+# that loses a knob on a kernel change re-converges without that key instead
+# of failing. See ADR-004 and roles/common/README.md.
 
-- name: Apply sysctl settings
+- name: Combine the unconditional and optional sysctl maps for probing
+  ansible.builtin.set_fact:
+    common_sysctl_all: >-
+      {{ common_sysctl_settings | combine(common_sysctl_settings_optional) }}
+
+- name: Probe each sysctl key for a live /proc/sys path
+  ansible.builtin.stat:
+    path: "/proc/sys/{{ item.key | replace('.', '/') }}"
+  loop: "{{ common_sysctl_all | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: common_sysctl_probe
+  changed_when: false
+  become: true
+
+- name: Partition sysctl keys into present and absent
+  ansible.builtin.set_fact:
+    common_sysctl_present: >-
+      {{ common_sysctl_probe.results
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+    common_sysctl_absent: >-
+      {{ common_sysctl_probe.results
+         | rejectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+
+# Strip any absent key from the persisted drop-in BEFORE reloading anything,
+# so a stale line (written on a prior boot where the knob existed) cannot make
+# the present-key `reload: true` below fail when `sysctl -p` re-reads the file.
+# reload:false here — the cleanup itself must not trigger a whole-file reload.
+- name: Remove absent sysctl keys from the drop-in (no stale lines)
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    sysctl_file: /etc/sysctl.d/90-ansible.conf
+    state: absent
+    reload: false
+  loop: "{{ common_sysctl_absent }}"
+  loop_control:
+    label: "{{ item.key }}"
+  become: true
+
+- name: Apply sysctl settings present on this kernel
   ansible.posix.sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
     reload: true
     state: present
-  loop: "{{ common_sysctl_settings | dict2items }}"
+  loop: "{{ common_sysctl_present }}"
   loop_control:
     label: "{{ item.key }}={{ item.value }}"
-  become: true
-
-# Kernel-version-dependent knobs (e.g. kernel.io_uring_disabled on >= 6.6,
-# dev.tty.legacy_tiocsti only with CONFIG_LEGACY_TIOCSTI=y). Apply each only
-# when its /proc/sys path exists so the same baseline is idempotent across
-# the 24.04 (kernel 6.8) and 26.04 (kernel 7.0) matrix: present -> enforced,
-# absent -> skipped (never a hard failure on a kernel that lacks the knob).
-- name: Probe for optional sysctl paths
-  ansible.builtin.stat:
-    path: "/proc/sys/{{ item.key | replace('.', '/') }}"
-  loop: "{{ common_sysctl_settings_optional | dict2items }}"
-  loop_control:
-    label: "{{ item.key }}"
-  register: common_sysctl_optional_paths
-  changed_when: false
-  become: true
-
-- name: Apply optional sysctl settings present on this kernel
-  ansible.posix.sysctl:
-    name: "{{ item.item.key }}"
-    value: "{{ item.item.value }}"
-    sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
-    state: present
-  loop: "{{ common_sysctl_optional_paths.results }}"
-  loop_control:
-    label: "{{ item.item.key }}={{ item.item.value }}"
-  when: item.stat.exists
   become: true

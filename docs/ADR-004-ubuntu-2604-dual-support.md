@@ -60,15 +60,22 @@ Reviewed `common_sysctl_settings` and `tasks/kernel_hardening.yml` against
 KSPP and kernel-7.0 defaults. Changes (all overridable, none weaken 24.04):
 
 - **New universally-present knobs** added to `common_sysctl_settings`
-  (present on both 6.8 and 7.0):
-  - `net.core.bpf_jit_harden=2` — harden the eBPF JIT (KSPP; CIS §1).
+  (present on every supported kernel ≥ 4.19):
   - `fs.protected_fifos=2`, `fs.protected_regular=2` — close file-creation
     races in world-writable sticky dirs (KSPP).
-  - `vm.unprivileged_userfaultfd=0` — remove a recurring use-after-free LPE
-    primitive (KSPP).
-- **New kernel-version-dependent knobs** in a separate, **path-gated** dict
+- **New config-/kernel-dependent knobs** in the **path-gated** dict
   `common_sysctl_settings_optional`, applied only when the `/proc/sys` path
-  exists so the baseline stays idempotent across the matrix:
+  exists so the baseline stays idempotent across the matrix and on stripped
+  containers:
+  - `net.core.bpf_jit_harden=2` — harden the eBPF JIT (KSPP; CIS §1). Needs
+    `CONFIG_BPF_JIT`; the `/proc` path is absent when the JIT is compiled out
+    and is commonly missing/namespaced inside containers, so it is path-gated
+    rather than unconditional (the original review placed it in the main set,
+    which would fail the first sysctl loop on a kernel/container that lacks
+    it).
+  - `vm.unprivileged_userfaultfd=0` — remove a recurring use-after-free LPE
+    primitive (KSPP). Needs `CONFIG_USERFAULTFD`; absent where compiled out
+    (the primitive is then already unavailable), so likewise path-gated.
   - `kernel.io_uring_disabled=1` — io_uring is a prominent LPE surface; the
     sysctl exists on kernel ≥ 6.6 (both 6.8 and 7.0). Hosts whose workloads
     need io_uring override to `0`.
@@ -76,6 +83,14 @@ KSPP and kernel-7.0 defaults. Changes (all overridable, none weaken 24.04):
     The sysctl **only exists** when the kernel is built with
     `CONFIG_LEGACY_TIOCSTI=y`; hardened kernels compile it out (TIOCSTI is
     then already disabled), so the key is skipped where its path is absent.
+
+The application path (`tasks/sysctl.yml`) probes **every** key — the
+always-present main set and the optional set alike — against its `/proc/sys`
+path, writes only present keys to `/etc/sysctl.d/90-ansible.conf`, and
+removes any now-absent key from the drop-in before the `reload: true`. So the
+persisted drop-in only ever contains currently-present keys: a host that
+loses a knob on a kernel change re-converges cleanly without it, and a stale
+line can never break the whole-file `sysctl -p` reload.
 - **Existing hardcoded kernel-hardening sysctls made overridable** (same
   default values — no weakening): `kernel.kptr_restrict`,
   `kernel.dmesg_restrict`, `kernel.unprivileged_bpf_disabled`,
@@ -110,11 +125,23 @@ verify run on both. New scenarios for `ssh_hardening`, `auditd`, and
 job stays `continue-on-error` until a green run on a Docker host
 (LIMITATIONS L2).
 
+**Scope of the dual-OS legs.** Both platforms are Docker containers that
+share the **host kernel**, so the noble and resolute legs execute the *same*
+running kernel regardless of userspace release. They therefore validate
+**userspace / package** behaviour across 24.04 and 26.04 (package installs,
+services, the sysctl drop-in is written, probe-then-apply is correct for
+whatever knobs the host kernel exposes) — they do **not**, and cannot, prove
+kernel-6.8-vs-7.0 sysctl differences. Proving kernel-7.0-specific sysctl
+behaviour needs VM-backed runners booting the matching kernels; a green
+container run must not be read as kernel-7.0 sysctl proof.
+
 ## Consequences
 
-- One baseline now targets two kernels. The path-gated optional sysctls and
-  the existing `failed_when: false` gates keep a first converge clean on
-  both 6.8 and 7.0; a knob absent on one kernel is skipped, never fatal.
+- One baseline now targets two kernels. Per-key `/proc/sys` probing across
+  both sysctl sets, removal of absent keys from the drop-in, and the existing
+  `failed_when: false` gates keep every converge clean on 6.8, 7.0, and
+  stripped containers; a knob absent on a given kernel is skipped and kept out
+  of the persisted drop-in, never fatal and never a stale line.
 - 26.04 controls are auditable today as "24.04 CIS + cited kernel-7.0/KSPP
   delta". This ADR must be re-validated and superseded once an official CIS
   Ubuntu 26.04 Benchmark is published.

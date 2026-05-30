@@ -11,13 +11,21 @@
 # CONTAINER CAVEAT: some kernel-global sysctls (kptr_restrict, ptrace_scope,
 # io_uring_disabled, …) are read-only or namespaced inside a container, so
 # verify.yml asserts the written /etc/sysctl.d/90-ansible.conf drop-in
-# (always produced) rather than only the live `sysctl` value. The optional
-# path-gated knobs (io_uring_disabled, legacy_tiocsti) are exercised by the
-# probe-then-apply path: where the kernel lacks the knob the task is
-# skipped, which is exactly the cross-kernel behaviour under test (ADR-004).
+# (always produced) rather than only the live `sysctl` value. The path-gated
+# knobs (bpf_jit_harden, unprivileged_userfaultfd, io_uring_disabled,
+# legacy_tiocsti) are exercised by the probe-then-apply path: where the knob
+# is absent the key is skipped AND kept out of the drop-in, which is exactly
+# the absent-key robustness under test.
 #
-# Dual-OS matrix (ADR-004): 24.04 (noble, kernel 6.8) + 26.04 (resolute,
-# kernel 7.0) — proves the path-gated optional sysctls behave on both.
+# WHAT THE DUAL-OS MATRIX DOES AND DOES NOT PROVE: both platforms are Docker
+# containers that share the HOST kernel, so the noble and resolute legs run
+# the *same* running kernel regardless of the userspace release. These legs
+# therefore validate USERSPACE / package behaviour across 24.04 and 26.04
+# (package set installs, services, drop-in is written, probe-then-apply is
+# correct for whatever knobs the host kernel exposes). They do NOT — and
+# cannot — prove kernel-version-specific sysctl differences between kernel
+# 6.8 and 7.0; that needs VM-backed runners with the matching kernels. Do not
+# read a green run here as kernel-7.0 sysctl proof (ADR-004, LIMITATIONS L1).
 
 dependency:
   name: galaxy

@@ -60,6 +60,16 @@ common_auto_updates_reboot_time: "02:00"
 # NIS2 Art 21.2(e) — network security
 # CRA Annex I Part I — protection of attack surface
 # GDPR Art 5(1)(c) — data minimisation (IPv6 privacy)
+#
+# This is the ALWAYS-PRESENT set: every key here exists on a stock Ubuntu
+# 24.04 (kernel 6.8) and 26.04 (kernel 7.0) host. The application path
+# (tasks/sysctl.yml) still probes each key's /proc/sys path defensively and
+# skips any that are missing, so a stripped-down container or a future
+# CONFIG change that compiles a knob out degrades to a no-op for that key
+# instead of failing the run. Knobs that are commonly compiled out (e.g.
+# net.core.bpf_jit_harden without CONFIG_BPF_JIT, vm.unprivileged_userfaultfd
+# without CONFIG_USERFAULTFD) live in common_sysctl_settings_optional below,
+# not here.
 common_sysctl_settings:
   # Network performance
   net.core.rmem_max: 16777216
@@ -122,21 +132,29 @@ common_sysctl_settings:
   dev.tty.ldisc_autoload: 0
   # Restrict perf_event_open to privileged users (CIS — side-channel risk).
   kernel.perf_event_paranoid: 2
-  # Harden the eBPF JIT against heap-spray / branch-predictor attacks
-  # (KSPP + CIS Ubuntu 24.04 §1; present since kernel 4.7). Overridable.
+
+# Kernel-/config-dependent sysctls. These knobs may be ABSENT depending on
+# the kernel's compile-time config or the (container) namespace, so they are
+# applied only when their /proc/sys path exists, and — critically — a key
+# whose path is absent is NOT written to the drop-in at all (see
+# tasks/sysctl.yml). That keeps the persisted /etc/sysctl.d/90-ansible.conf
+# free of stale keys, so a host that loses a knob on a kernel change still
+# converges cleanly and the `reload: true` never trips over a missing key.
+# This keeps the role idempotent across the 24.04 (kernel 6.8) / 26.04
+# (kernel 7.0) matrix without weakening either: where a knob is missing it is
+# skipped, where it is present it is enforced. Override values here; set a
+# key's value to the kernel default to effectively disable enforcement.
+common_sysctl_settings_optional:
+  # Harden the eBPF JIT against heap-spray / branch-predictor attacks (KSPP +
+  # CIS Ubuntu 24.04 §1). Requires CONFIG_BPF_JIT; the /proc path is absent
+  # when the JIT is compiled out and is commonly missing/namespaced inside
+  # containers, so it is path-gated rather than unconditional. Overridable.
   net.core.bpf_jit_harden: 2
   # Disable unprivileged userfaultfd — a recurring use-after-free LPE
-  # primitive (KSPP; present since kernel 5.11, so on both 6.8 and 7.0).
+  # primitive (KSPP). Requires CONFIG_USERFAULTFD; hardened/stripped kernels
+  # compile it out, in which case the /proc path is absent and the primitive
+  # is already unavailable, so this is a no-op there. Path-gated.
   vm.unprivileged_userfaultfd: 0
-
-# Kernel-version-dependent sysctls. These knobs may be ABSENT depending on
-# the kernel's compile-time config, so they are applied only when their
-# /proc/sys path exists (see tasks/sysctl.yml). This keeps the role
-# idempotent across the 24.04 (kernel 6.8) / 26.04 (kernel 7.0) matrix
-# without weakening either: where a knob is missing it is skipped, where it
-# is present it is enforced. Override values here; set a key's value to the
-# kernel default to effectively disable enforcement.
-common_sysctl_settings_optional:
   # Restrict io_uring, a prominent local-privilege-escalation attack surface
   # in recent kernels. 0=unrestricted (kernel default), 1=disabled for
   # unprivileged processes outside kernel.io_uring_group, 2=disabled for all.
