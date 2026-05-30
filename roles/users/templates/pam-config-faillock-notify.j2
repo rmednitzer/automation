@@ -1,0 +1,8 @@
+Name: Check failed login attempt counter before auth (pam_faillock preauth)
+Default: yes
+Priority: 384
+Auth-Type: Primary
+Auth:
+	requisite	pam_faillock.so preauth
+Auth-Initial:
+	requisite	pam_faillock.so preauth

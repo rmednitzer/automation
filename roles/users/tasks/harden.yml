@@ -1,25 +1,18 @@
 ---
 # Account hardening tasks
 
-- name: Set default umask in /etc/profile
-  ansible.builtin.lineinfile:
-    path: /etc/profile
-    regexp: "^umask"
-    line: "umask {{ users_umask }}"
-  become: true
-
-- name: Set default umask in /etc/bash.bashrc
-  ansible.builtin.lineinfile:
-    path: /etc/bash.bashrc
-    regexp: "^umask"
-    line: "umask {{ users_umask }}"
-  become: true
-
-- name: Set login timeout in /etc/profile
-  ansible.builtin.lineinfile:
-    path: /etc/profile
-    regexp: "^TMOUT="
-    line: "TMOUT={{ users_login_timeout }}"
+# Ship umask + TMOUT via a single /etc/profile.d drop-in rather than editing
+# /etc/profile and /etc/bash.bashrc in place (M6). The drop-in marks TMOUT
+# readonly+exported so a user cannot `unset TMOUT` to defeat the idle-logout,
+# and keeps the hardening in one Ansible-owned file that is trivially
+# auditable and removable. CIS-aligned.
+- name: Deploy shell session hardening profile (umask + TMOUT)
+  ansible.builtin.template:
+    src: 99-hardening.sh.j2
+    dest: /etc/profile.d/99-hardening.sh
+    owner: root
+    group: root
+    mode: "0644"
   become: true
 
 - name: Lock root account

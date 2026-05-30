@@ -1,0 +1,53 @@
+---
+# Molecule scenario for the `users` role.
+#
+# NOTE: requires Docker, which is unavailable in the current CI sandbox, so
+# this scenario is authored and YAML-validated but has NOT been executed
+# here (see LIMITATIONS.md L2/L3). Run locally / in a Docker-enabled CI:
+#
+#   pip install molecule molecule-plugins[docker] docker
+#   cd roles/users && molecule test
+#
+# `molecule test` runs the full sequence (create → converge → idempotence →
+# verify → destroy); the idempotence step enforces a no-change second run.
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  # systemd-enabled Ubuntu 24.04 image so pam-auth-update, login.defs, and
+  # /etc/profile.d hardening behave as on a real host.
+  - name: users-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: profile_tasks
+  inventory:
+    host_vars:
+      users-noble:
+        # Deterministic, container-safe inputs for the converge.
+        users_managed:
+          - name: molecule-deploy
+            groups:
+              - sudo
+            shell: /bin/bash
+            state: present
+
+verifier:
+  name: ansible
