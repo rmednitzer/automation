@@ -53,6 +53,16 @@
 # so a stale line (written on a prior boot where the knob existed) cannot make
 # the present-key `reload: true` below fail when `sysctl -p` re-reads the file.
 # reload:false here — the cleanup itself must not trigger a whole-file reload.
+#
+# SCOPE: this removes only keys THIS role's sysctl maps define that are absent
+# on the running kernel. It deliberately does NOT blanket-prune every key in
+# the file that is not in the present set: /etc/sysctl.d/90-ansible.conf is
+# SHARED with kernel_hardening.yml (kernel.randomize_va_space, kptr_restrict,
+# …), so a blanket prune would delete those hardening keys on every converge.
+# A key removed from this role's maps entirely (a future edit) would still
+# leave a stale line; closing that fully needs a single owner rendering the
+# drop-in from the union of all managed keys (sysctl maps + kernel_hardening) —
+# tracked as a follow-up, not done here to avoid fighting kernel_hardening.yml.
 - name: Remove absent sysctl keys from the drop-in (no stale lines)
   ansible.posix.sysctl:
     name: "{{ item.key }}"

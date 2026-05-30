@@ -6,6 +6,13 @@
 - name: Verify
   hosts: all
   become: true
+  # This standalone verifier does not include the common role, so the role
+  # defaults are not auto-loaded. Load them explicitly so the optional-sysctl
+  # probe loop below can reference common_sysctl_settings_optional (otherwise
+  # it fails on an undefined variable). Path is relative to this playbook:
+  # roles/common/molecule/default/ -> roles/common/defaults/main.yml.
+  vars_files:
+    - ../../defaults/main.yml
   tasks:
     - name: Stat the sysctl drop-in
       ansible.builtin.stat:
