@@ -51,6 +51,11 @@ usbguard_inserted_device_policy: "apply-policy"
 
 usbguard_rules_file: /etc/usbguard/rules.conf
 usbguard_daemon_conf: /etc/usbguard/usbguard-daemon.conf
+# Role-owned marker that the allow-list has been seeded by THIS role on first
+# enforce. We key the one-time bootstrap on this, not on rules.conf, because the
+# package's postinst creates rules.conf at install time — keying on that would
+# skip the seed and start the daemon with a stale allow-list.
+usbguard_bootstrap_sentinel: /etc/usbguard/.ansible-rules-bootstrapped
 
 # Report the count of currently-connected USB devices (read-only, via
 # `usbguard generate-policy`, which reads sysfs and needs no daemon).

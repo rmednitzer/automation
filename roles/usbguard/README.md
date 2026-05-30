@@ -23,17 +23,24 @@ console keyboard/mouse), so the role is conservative:
 
 - **Enforcement is opt-in.** `usbguard_enforce` is `false` by default — a
   baseline run installs USBGuard and audits the device count but does **not**
-  enable the blocking daemon.
+  enable the blocking daemon. Because the package auto-starts the daemon on
+  install, audit-only mode **masks** `usbguard.service` so it cannot come up and
+  start enforcing with the package's default policy.
 - **Connected devices are never deauthorised.** When you do enforce,
   `PresentDevicePolicy=keep` leaves already-attached devices (keyboard, mouse,
   existing storage) in their authorised state, and `PresentControllerPolicy=keep`
   never blacks out the USB controllers. Only **newly inserted** devices are
   evaluated against the allow-list (`InsertedDevicePolicy=apply-policy`,
   `ImplicitPolicyTarget=block`) — that is where the protection is.
-- **The allow-list is seeded from the live machine.** On first enforce the rule
-  set is generated from the devices connected at that moment, so the console
-  input devices are allow-listed. The rule file is then **operator-managed**
-  (the role won't regenerate it).
+- **The allow-list is seeded from the live machine at first enforce.** Keyed on
+  a role-owned sentinel (`/etc/usbguard/.ansible-rules-bootstrapped`), not the
+  package's install-time `rules.conf`, so the rules are (re)generated from the devices
+  connected *when you enable enforcement* — the console input devices are
+  allow-listed. The rule file is then **operator-managed** (the role won't
+  regenerate it).
+- **IPC is root-only.** The package ships an `IPCAccessControl.d/plugdev` ACL
+  that would let `plugdev`-group users authorise devices over the IPC bus; the
+  role removes it when enforcing, so only root can change device authorisation.
 - **Container-guest aware** (`usbguard_runtime_managed`): USB authorization is a
   host-hardware property, so container *guests* skip entirely; a container/LXC
   **host** is managed normally — same `ansible_virtualization_role == 'guest'`

@@ -27,6 +27,21 @@
           inserted={{ usbguard_inserted_device_policy }}).
         quiet: true
 
+    # The Debian/Ubuntu usbguard package auto-enables and starts the daemon on
+    # install (dh_installsystemd). When NOT enforcing, mask the unit FIRST so
+    # the package cannot bring USB enforcement up during install, and so
+    # audit-only mode keeps the daemon firmly off (masked = cannot start). The
+    # enforce path unmasks it below. Masking is idempotent, so audit-only runs
+    # converge cleanly.
+    - name: Mask the USBGuard daemon when not enforcing
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: true
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - not (usbguard_enforce | bool)
+
     - name: Install USBGuard
       ansible.builtin.apt:
         name: usbguard
@@ -61,13 +76,25 @@
         - usbguard_audit | bool
 
     # --- Opt-in enforcement ---------------------------------------------------
-    # Bootstrap the allow-list from the devices connected RIGHT NOW (incl. the
-    # console keyboard/mouse) so enabling the daemon does not lock them out.
-    # `creates` makes this one-time: the rule set is operator-managed afterwards.
-    - name: Bootstrap the USBGuard rule set from currently-connected devices
+    - name: Unmask the USBGuard daemon for enforcement
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    # Seed the allow-list from the devices connected RIGHT NOW (incl. the
+    # console keyboard/mouse) on first enforce, then mark it done with a
+    # role-owned sentinel. We key `creates:` on the sentinel — NOT rules.conf,
+    # which the package's postinst already created at install time — so the
+    # daemon never starts with a stale package allow-list. The rule set is
+    # operator-managed after this.
+    - name: Seed the USBGuard rule set from currently-connected devices (first enforce)
       ansible.builtin.shell:
-        cmd: "usbguard generate-policy > {{ usbguard_rules_file }}"
-        creates: "{{ usbguard_rules_file }}"
+        cmd: "usbguard generate-policy > {{ usbguard_rules_file }} && touch {{ usbguard_bootstrap_sentinel }}"
+        creates: "{{ usbguard_bootstrap_sentinel }}"
       become: true
       changed_when: true
       when:
@@ -84,6 +111,20 @@
       when:
         - usbguard_runtime_managed | bool
         - usbguard_enforce | bool
+
+    # The package postinst drops /etc/usbguard/IPCAccessControl.d/plugdev, which
+    # grants the plugdev group device-modification rights over the IPC bus and
+    # overrides IPCAllowedGroups=root. Remove it so authorising a blocked device
+    # is genuinely root-only.
+    - name: Remove the package-created plugdev IPC ACL (keep IPC root-only)
+      ansible.builtin.file:
+        path: /etc/usbguard/IPCAccessControl.d/plugdev
+        state: absent
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+      notify: Restart usbguard
 
     - name: Deploy the USBGuard daemon configuration
       ansible.builtin.template:
