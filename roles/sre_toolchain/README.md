@@ -134,7 +134,11 @@ ansible-playbook -i inventories/<env>/hosts playbooks/sre-toolchain.yml \
 - Requires outbound HTTPS to `api.github.com` and
   `github.com` / `objects.githubusercontent.com`.
 - Re-runs are idempotent: tools already present are skipped unless
-  `sre_toolchain_force` is set.
+  `sre_toolchain_force` is set. The evidence manifest is idempotent too —
+  the role reads the previous manifest, carries skipped tools' evidence
+  forward unchanged, and reuses the prior `generated` timestamp when the
+  substantive payload is identical, so a no-op converge rewrites the same
+  bytes (Molecule's idempotence step stays green).
 
 ## Testing
 
@@ -142,10 +146,15 @@ A Molecule scenario (`molecule/default/`) reduces the catalogue to
 `opa` + `kubeconform` via `sre_toolchain_skip` and asserts both land on
 `$PATH` and execute, the evidence manifest is valid JSON, and the strict
 SHA256 path recorded `verified` for each (a mismatch would abort — that is
-the test). The cosign signature path stays unrun (`verify_signatures=false`
+the test). A `prepare.yml` play installs the role's required host commands
+(`jq`, `unzip`, `curl`, `tar`, `coreutils`, `ca-certificates`) into the
+clean geerlingguy containers first, since the role aborts up-front if any is
+missing — without it the scenario would never reach the download + checksum
+path. The cosign signature path stays unrun (`verify_signatures=false`
 default; cosign not installed) and is asserted as `not_checked`. Because it
 needs Docker **and** outbound HTTPS to the GitHub API + release CDN
 (ideally `SRE_TOOLCHAIN_GITHUB_TOKEN` to avoid the 60-req/hour limit), it is
 kept out of the default `molecule` matrix — run it explicitly with
 `make molecule-sre` (unrun in the authoring sandbox — see `LIMITATIONS.md`
-L5).
+L5). The full `molecule test` sequence (including the idempotence pass) is
+used as-is because the manifest is now idempotent (see Notes).

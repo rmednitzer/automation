@@ -95,6 +95,50 @@
   tags:
     - sre-toolchain
 
+# Read the previous manifest (if any) so a re-converge that SKIPS an
+# already-installed tool can carry that tool's evidence forward unchanged
+# instead of dropping it. Without this, a no-op converge would rewrite the
+# manifest with an empty evidence map for the skipped tools and Molecule's
+# idempotence step would report a change. Tolerates a missing/invalid file.
+- name: Seed the previous-manifest fact (empty default)
+  ansible.builtin.set_fact:
+    sre_toolchain_prev_manifest: {}
+  tags:
+    - sre-toolchain
+
+- name: Stat the existing evidence manifest
+  ansible.builtin.stat:
+    path: "{{ sre_toolchain_version_log }}"
+  register: sre_toolchain_manifest_stat
+  become: true
+  tags:
+    - sre-toolchain
+
+- name: Slurp the existing evidence manifest
+  ansible.builtin.slurp:
+    src: "{{ sre_toolchain_version_log }}"
+  register: sre_toolchain_manifest_slurp
+  when: sre_toolchain_manifest_stat.stat.exists
+  become: true
+  tags:
+    - sre-toolchain
+
+# from_json can raise on a corrupt file; the rescue keeps the empty default so
+# the role still runs (it simply re-records evidence on this pass).
+- name: Parse the previous manifest (best effort)
+  when: sre_toolchain_manifest_stat.stat.exists
+  tags:
+    - sre-toolchain
+  block:
+    - name: Decode the previous manifest JSON
+      ansible.builtin.set_fact:
+        sre_toolchain_prev_manifest: >-
+          {{ sre_toolchain_manifest_slurp.content | b64decode | from_json }}
+  rescue:
+    - name: Keep the empty previous-manifest default on parse failure
+      ansible.builtin.set_fact:
+        sre_toolchain_prev_manifest: {}
+
 # When signature verification is enabled, cosign must exist on the target
 # before any tool is verified. Bootstrap it first from the catalogue entry
 # (its own checksum is still enforced by the install path). H2/H3b.

@@ -4,11 +4,19 @@
 # checksum policy, when, and on which architecture. The bash installer
 # produced the same shape — preserved here so downstream audit tooling
 # does not need to change.
+#
+# IDEMPOTENT manifest: the `generated` timestamp would otherwise change on
+# every converge and make Molecule's idempotence step report a change even
+# when nothing was installed. We therefore compute the substantive payload
+# (everything except `generated`) and reuse the PREVIOUS manifest's timestamp
+# whenever that substantive payload is byte-for-byte identical to the prior
+# run. The timestamp is only refreshed when something actually changed. Paired
+# with carrying skipped tools' evidence forward (install_tool.yml), a no-op
+# converge writes identical bytes and `ansible.builtin.copy` reports ok.
 
-- name: "Render manifest payload"
+- name: "Render manifest substantive payload (timestamp excluded)"
   ansible.builtin.set_fact:
-    sre_toolchain_manifest:
-      generated: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}"
+    sre_toolchain_manifest_body:
       arch: "{{ sre_toolchain_arch }}"
       os: "{{ sre_toolchain_os }}"
       checksum_policy: "{{ sre_toolchain_checksum_policy }}"
@@ -19,6 +27,24 @@
       # H3c evidence: per-tool resolved tag + sha256 + asset + checksum and
       # signature verification status (CTL-002). Keyed by primary binary.
       evidence: "{{ sre_toolchain_evidence | default({}) }}"
+
+# Compare the new body against the previous manifest with `generated` stripped.
+# Equal => reuse the old timestamp (no-op converge writes identical bytes).
+# Differ (or no prior manifest) => stamp now.
+- name: "Decide the manifest timestamp (stable on a no-op converge)"
+  ansible.builtin.set_fact:
+    sre_toolchain_manifest_generated: >-
+      {{ (sre_toolchain_prev_manifest.generated)
+         if (sre_toolchain_prev_manifest | default({})
+             | dict2items | rejectattr('key', 'equalto', 'generated')
+             | items2dict) == sre_toolchain_manifest_body
+         else ('%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int)) }}
+
+- name: "Assemble the full manifest"
+  ansible.builtin.set_fact:
+    sre_toolchain_manifest: >-
+      {{ {'generated': sre_toolchain_manifest_generated}
+         | combine(sre_toolchain_manifest_body) }}
 
 - name: "Write manifest"
   ansible.builtin.copy:

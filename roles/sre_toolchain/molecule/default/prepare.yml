@@ -1,0 +1,28 @@
+---
+# Prepare: install the host commands the sre_toolchain role requires before
+# it will run. The role asserts each of sre_toolchain_required_commands
+# (curl, jq, tar, unzip, sha256sum) is on PATH and aborts otherwise. The
+# clean geerlingguy/docker-ubuntu* images do not ship jq or unzip, so without
+# this play `make molecule-sre` would fail the "Verify required commands"
+# task before ever reaching the OPA / kubeconform download + checksum path
+# this scenario exists to exercise. coreutils provides sha256sum; curl and
+# ca-certificates are needed for the GitHub API + release-CDN egress.
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Update the apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install the sre_toolchain host dependencies
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - coreutils
+          - curl
+          - jq
+          - tar
+          - unzip
+        state: present
