@@ -1,0 +1,70 @@
+---
+# DNS resolver hardening (systemd-resolved) role defaults.
+#
+# Compliance references:
+#   - POL-003 — cryptography policy: DNS-over-TLS encrypts resolver traffic and
+#     DNSSEC authenticates responses (TLS-in-transit + authenticity for name
+#     resolution)
+#   - NIS2 Art 21.2(e) — security in network and information systems
+#   - CRA Annex I Part I — minimise attack surface (LLMNR / MulticastDNS off)
+#   - GDPR Art 32 — security of processing (confidential resolver transport)
+#   - ISO 27001:2022 A.8.24 — use of cryptography
+#
+# Targets Ubuntu 24.04 (systemd 255) and 26.04 (systemd 259); both ship
+# systemd-resolved as a separate package. See docs/ADR-004.
+
+# Global upstream resolvers. EMPTY by default: the role then keeps the
+# DHCP/link-provided resolvers (so internal / split-horizon DNS is NOT
+# broken on a fleet-wide apply) and only layers on the hardening below.
+# Set this per environment to pin upstreams, using systemd-resolved's
+# "IP#servername" form so strict DoT can validate the certificate SNI, e.g.:
+#   dns_resolvers:
+#     - "9.9.9.9#dns.quad9.net"
+#     - "2620:fe::fe#dns.quad9.net"
+dns_resolvers: []
+
+# Fallback resolvers — used ONLY when no other configured/link resolver works,
+# so safe to point at public DoT resolvers (Quad9 primary, Cloudflare second)
+# without overriding internal DNS. Override or empty as needed.
+dns_fallback_resolvers:
+  - "9.9.9.9#dns.quad9.net"
+  - "2620:fe::fe#dns.quad9.net"
+  - "1.1.1.1#cloudflare-dns.com"
+  - "2606:4700:4700::1111#cloudflare-dns.com"
+
+# Search domains for unqualified name lookups (empty by default; set per env).
+dns_search_domains: []
+
+# DNSSEC validation mode (resolved.conf DNSSEC=): one of
+#   allow-downgrade — validate when the chain supports it, tolerate unsigned /
+#                     broken zones (safe fleet-wide default)
+#   "yes"           — strict: SERVFAIL on validation failure
+#   "no"            — disabled
+dns_dnssec: "allow-downgrade"
+
+# DNS-over-TLS mode (resolved.conf DNSOverTLS=): one of
+#   opportunistic — encrypt when the resolver supports it, else cleartext
+#                   (safe default; no hard failure against non-DoT resolvers)
+#   "yes"         — strict: refuse cleartext (every resolver must present a
+#                   cert matching its "#servername" SNI)
+#   "no"          — disabled
+dns_over_tls: "opportunistic"
+
+# Reduce local name-resolution attack surface (spoofing / poisoning vectors).
+dns_disable_llmnr: true
+dns_disable_multicast_dns: true
+
+# Local caching stub resolver and /etc/hosts resolution.
+dns_cache: true
+dns_read_etc_hosts: true
+
+# Repoint /etc/resolv.conf at the systemd-resolved stub (127.0.0.53), so the
+# stub resolver (and thus DNSSEC/DoT/caching) is actually on the query path.
+dns_manage_resolv_conf: true
+
+# Manage the systemd-resolved service (enable + restart on config change) and
+# the resolv.conf symlink. Auto-disabled in container GUESTS, where
+# systemd-resolved is usually not the resolver and a restart can fail; the
+# drop-in is still deployed (config-as-code). The guest check is deliberate —
+# a container/LXC *host* still manages its own resolver (see tasks/main.yml).
+dns_manage_service: true

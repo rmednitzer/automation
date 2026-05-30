@@ -1,0 +1,11 @@
+---
+# DNS role handlers
+
+- name: Restart systemd-resolved
+  ansible.builtin.systemd_service:
+    name: systemd-resolved
+    state: restarted
+  become: true
+  # Skipped in container guests (dns_runtime_managed, set in tasks/main.yml):
+  # the drop-in is deployed but there is no managed resolver to restart there.
+  when: dns_runtime_managed

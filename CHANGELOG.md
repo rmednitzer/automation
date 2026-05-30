@@ -9,6 +9,19 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `dns` role — resolver hardening (POL-003).** Adds DNS
+  handling via `systemd-resolved`: a `resolved.conf.d/90-ansible.conf` drop-in
+  enabling DNSSEC (`allow-downgrade`), DNS-over-TLS (`opportunistic`), and
+  disabling LLMNR/MulticastDNS, plus a local caching stub and the
+  `/etc/resolv.conf` → stub symlink. Safe-by-default: `dns_resolvers` is empty,
+  so link/DHCP (internal/split-horizon) DNS is preserved and only the
+  hardening is layered on; public DoT resolvers are configured as *fallback*
+  only. Container-guest aware (`dns_runtime_managed`): the service
+  start/restart and resolv.conf symlink are skipped in container guests while
+  the drop-in is still deployed. Added to `playbooks/site-common.yml` (after
+  `ntp`) and mapped to POL-003 in `docs/compliance-controls.yml`. POL-003
+  (DoT/DNSSEC), NIS2 Art 21.2(e), CRA Annex I, GDPR Art 32.
+
 - 2026-05-30 **`auditd` container-awareness (CTL-002/003 — Molecule
   follow-up).** The `auditd` role now computes `auditd_runtime_managed`
   (honours the new `auditd_manage_runtime` default and requires a

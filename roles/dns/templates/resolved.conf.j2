@@ -1,0 +1,21 @@
+{{ ansible_managed | comment }}
+# systemd-resolved hardening drop-in (roles/dns). See resolved.conf(5).
+# DNSSEC authenticates responses; DNS-over-TLS encrypts resolver transport;
+# LLMNR/MulticastDNS are disabled to cut local spoofing surface (POL-003,
+# NIS2 Art 21.2(e), CRA Annex I, GDPR Art 32).
+[Resolve]
+{% if dns_resolvers | length > 0 %}
+DNS={{ dns_resolvers | join(' ') }}
+{% endif %}
+{% if dns_fallback_resolvers | length > 0 %}
+FallbackDNS={{ dns_fallback_resolvers | join(' ') }}
+{% endif %}
+{% if dns_search_domains | length > 0 %}
+Domains={{ dns_search_domains | join(' ') }}
+{% endif %}
+DNSSEC={{ dns_dnssec }}
+DNSOverTLS={{ dns_over_tls }}
+LLMNR={{ 'no' if dns_disable_llmnr else 'yes' }}
+MulticastDNS={{ 'no' if dns_disable_multicast_dns else 'yes' }}
+Cache={{ 'yes' if dns_cache else 'no' }}
+ReadEtcHosts={{ 'yes' if dns_read_etc_hosts else 'no' }}
