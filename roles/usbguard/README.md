@@ -34,15 +34,18 @@ console keyboard/mouse), so the role is conservative:
   never blacks out the USB controllers. Only **newly inserted** devices are
   evaluated against the allow-list (`InsertedDevicePolicy=apply-policy`,
   `ImplicitPolicyTarget=block`) — that is where the protection is.
-- **The allow-list is seeded from the live machine at first enforce.** Keyed on
-  a role-owned sentinel (`/etc/usbguard/.ansible-rules-bootstrapped`), not the
-  package's install-time `rules.conf`, so the rules are (re)generated from the devices
-  connected *when you enable enforcement* — the console input devices are
-  allow-listed. The rule file is then **operator-managed** (the role won't
-  regenerate it).
-- **IPC is root-only.** The package ships an `IPCAccessControl.d/plugdev` ACL
-  that would let `plugdev`-group users authorise devices over the IPC bus; the
-  role removes it when enforcing, so only root can change device authorisation.
+- **The allow-list is seeded from the live machine at first enforce — and an
+  existing policy is preserved.** Keyed on a role-owned sentinel
+  (`/etc/usbguard/.ansible-rules-bootstrapped`). If `rules.conf` is absent or
+  empty, it is generated from the devices connected *when you enable
+  enforcement* (so the console input devices are allow-listed); if it already
+  holds an operator-curated policy, that policy is **adopted as-is, never
+  overwritten**. The rule file is operator-managed thereafter.
+- **IPC and D-Bus are root-only.** The package grants the `plugdev` group device
+  authorisation two ways: an `IPCAccessControl.d/:plugdev` ACL (group ACL files
+  take a leading colon) and polkit rules over the `usbguard-dbus` service. When
+  enforcing, the role removes the `:plugdev` ACL and masks `usbguard-dbus`
+  (`usbguard_disable_dbus`, default true), so only root can authorise a device.
 - **Container-guest aware** (`usbguard_runtime_managed`): USB authorization is a
   host-hardware property, so container *guests* skip entirely; a container/LXC
   **host** is managed normally — same `ansible_virtualization_role == 'guest'`
@@ -75,6 +78,7 @@ Manage the allow-list afterwards with the `usbguard` CLI
 | `usbguard_present_device_policy` | `keep` | Already-connected devices on start (`keep` = don't touch) |
 | `usbguard_inserted_device_policy` | `apply-policy` | Newly inserted devices (evaluate vs rules) |
 | `usbguard_audit` | `true` | Report the connected-device count (read-only) |
+| `usbguard_disable_dbus` | `true` | Mask `usbguard-dbus` when enforcing (close the polkit/D-Bus path) |
 | `usbguard_manage_runtime` | `true` | Manage install/daemon (auto-off in container guests) |
 
 Full list in `defaults/main.yml`.

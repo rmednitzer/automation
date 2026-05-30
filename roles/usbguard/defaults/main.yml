@@ -51,6 +51,12 @@ usbguard_inserted_device_policy: "apply-policy"
 
 usbguard_rules_file: /etc/usbguard/rules.conf
 usbguard_daemon_conf: /etc/usbguard/usbguard-daemon.conf
+# Mask usbguard-dbus.service when enforcing. The package ships polkit grants
+# that let active plugdev-group users authorise devices over the usbguard-dbus
+# D-Bus interface without authentication; that service is off by default, and
+# masking it keeps device authorisation genuinely root-only. Set false to allow
+# the D-Bus interface (e.g. a desktop USBGuard applet).
+usbguard_disable_dbus: true
 # Role-owned marker that the allow-list has been seeded by THIS role on first
 # enforce. We key the one-time bootstrap on this, not on rules.conf, because the
 # package's postinst creates rules.conf at install time — keying on that would
