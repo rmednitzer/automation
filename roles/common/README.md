@@ -23,12 +23,17 @@ for the dual-support stance.
   `kernel.io_uring_disabled`, and `dev.tty.legacy_tiocsti`.
   **Absence handling is end-to-end:** every sysctl key (the main set *and*
   the optional set) is probed against its `/proc/sys` path; only present
-  keys are written to `/etc/sysctl.d/90-ansible.conf`, and any key that has
-  gone absent is first removed from the drop-in (so a stale line from a
-  prior boot cannot break the `reload: true`). This keeps the baseline
-  idempotent across kernel 6.8 (24.04) and 7.0 (26.04) and on stripped
-  containers: a missing knob is skipped, never a failure, and a host that
-  loses a knob on a kernel change re-converges cleanly without it.
+  keys are written to `/etc/sysctl.d/90-ansible.conf`. The role *owns* that
+  drop-in, so before reloading it prunes any key not in its
+  managed-and-applicable set — the present map keys plus the keys
+  `kernel_hardening.yml` applies (enumerated once as
+  `common_kernel_hardening_sysctl_keys`, since the two tasks share the file).
+  That removes both a map key gone absent on this kernel **and** a key
+  removed from the role entirely, so no stale line survives to break the
+  `reload: true`. The baseline stays idempotent across kernel 6.8 (24.04)
+  and 7.0 (26.04) and on stripped containers: a missing knob is skipped,
+  never a failure, and a host that loses a knob — or carried a now-removed
+  one — re-converges cleanly without it.
 - Hardens the kernel: blacklists unused filesystem and network modules,
   disables core dumps, enables ASLR, restricts kernel pointer / dmesg
   / unprivileged BPF / unprivileged user namespaces / `ptrace_scope`

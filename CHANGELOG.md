@@ -26,6 +26,19 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
     on a kernel change now re-converges cleanly without it. README + ADR-004 +
     `common` molecule verify updated (assert present knobs written, absent
     knobs NOT written). CTL-002, CTL-003, POL-004.
+  - **`common` sysctl drop-in single-source prune (Codex follow-up):** the
+    earlier cleanup only removed the role's own map keys that were absent on
+    the kernel, so a key removed from the role *entirely* could leave a stale
+    line (and `/etc/sysctl.d/90-ansible.conf` is shared with
+    `kernel_hardening.yml`, so a blanket prune would wrongly delete its keys).
+    Introduced `common_kernel_hardening_sysctl_keys` (defaults) as the single
+    enumeration of the keys `kernel_hardening.yml` owns, and changed
+    `tasks/sysctl.yml` to prune **every** drop-in key not in the union of the
+    present map keys + those kernel-hardening keys — closing the
+    removed-from-role stale-line case without fighting `kernel_hardening.yml`.
+    Idempotent (nothing to prune on a stable host); kept the per-key
+    `ansible.posix.sysctl` apply (no application-mechanism change). CTL-002,
+    CTL-003, POL-004.
   - **Vault lint globs (Codex):** `.ansible-lint` `exclude_paths` now uses a
     `**/vault.yml` glob (matching `.yamllint`) so any documented vault path —
     including `inventories/<env>/host_vars/<host>/vault.yml` — is excluded,

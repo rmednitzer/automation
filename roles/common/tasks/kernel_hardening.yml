@@ -1,5 +1,13 @@
 ---
 # Kernel hardening tasks
+#
+# The `ansible.posix.sysctl` tasks below write into the SAME drop-in as
+# tasks/sysctl.yml (/etc/sysctl.d/90-ansible.conf). sysctl.yml owns the file
+# and prunes any key not in the role's managed set, so the sysctl key names
+# applied here are enumerated in defaults as common_kernel_hardening_sysctl_keys
+# for that prune. KEEP THAT LIST IN SYNC: if you add/remove a sysctl key here,
+# update common_kernel_hardening_sysctl_keys too, or sysctl.yml will prune the
+# new key (or fail to prune a removed one).
 
 - name: Blacklist unnecessary kernel modules
   ansible.builtin.copy:

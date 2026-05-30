@@ -198,6 +198,24 @@ common_kernel_unprivileged_bpf_disabled: 1
 common_kernel_randomize_va_space: 2
 common_kernel_ptrace_scope: 2
 
+# The sysctl keys applied by tasks/kernel_hardening.yml (it writes them
+# individually, with per-key when/failed_when, into the SAME drop-in as
+# tasks/sysctl.yml). Listed here as data so sysctl.yml can treat the role's
+# managed-key set as the UNION of the two sysctl maps above and these keys, and
+# prune anything else from /etc/sysctl.d/90-ansible.conf. This is the single
+# source of truth for "what the role manages in that file"; a key removed from
+# the role entirely (dropped from the maps OR from kernel_hardening.yml) is then
+# pruned instead of leaving a stale line that could break the whole-file reload.
+# KEEP IN SYNC with the `ansible.posix.sysctl` names in tasks/kernel_hardening.yml.
+common_kernel_hardening_sysctl_keys:
+  - fs.suid_dumpable
+  - kernel.randomize_va_space
+  - kernel.kptr_restrict
+  - kernel.dmesg_restrict
+  - kernel.unprivileged_bpf_disabled
+  - kernel.unprivileged_userns_clone
+  - kernel.yama.ptrace_scope
+
 # Kernel module blacklist (disable unnecessary/risky modules)
 # CRA Annex I Part I — minimal attack surface
 common_kernel_modules_blacklist:
