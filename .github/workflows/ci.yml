@@ -129,10 +129,13 @@ jobs:
           pip install -r requirements-dev.txt
 
       # Proves the vault convention end-to-end: the committed example
-      # inventories/development/group_vars/vault.yml is really ansible-vault
-      # encrypted and decrypts with the documented throwaway password
-      # ("example" — it only protects placeholder values). The password is
-      # written to a file and passed via --vault-password-file, mirroring the
+      # docs/examples/vault.yml is really ansible-vault encrypted and decrypts
+      # with the documented throwaway password ("example" — it only protects
+      # placeholder values). It lives under docs/examples/ rather than an
+      # inventories/<env>/group_vars/ path so it does NOT auto-load on normal
+      # dev runs (an encrypted group_vars/vault.yml would force every dev run
+      # to supply the vault password). The password is written to a file and
+      # passed via --vault-password-file, mirroring the
       # ANSIBLE_VAULT_PASSWORD_FILE convention in CLAUDE.md. Fails if the file
       # is not encrypted or the password/convention drifts.
       - name: Decrypt the worked vault example
@@ -142,7 +145,7 @@ jobs:
           trap 'rm -f "$pwfile"' EXIT
           ansible-vault view \
             --vault-password-file "$pwfile" \
-            inventories/development/group_vars/vault.yml \
+            docs/examples/vault.yml \
             | grep -q 'vault_smtp_user' \
             && echo "vault example decrypted OK"
 

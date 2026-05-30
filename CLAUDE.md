@@ -192,19 +192,28 @@ Two files demonstrate the convention:
 - **Plaintext template** —
   [`inventories/development/group_vars/vault.yml.example`](inventories/development/group_vars/vault.yml.example):
   the placeholder structure, committed as-is (the `.example` suffix exempts
-  it from the encryption guard).
+  it from the encryption guard). It stays in the inventory so contributors
+  see where a real `vault.yml` would live.
 - **Real encrypted file** —
-  [`inventories/development/group_vars/vault.yml`](inventories/development/group_vars/vault.yml):
-  an *actually* `ansible-vault`-encrypted `vault.yml` committed in encrypted
-  form, so the `ansible-vault-encrypted` pre-commit guard
+  [`docs/examples/vault.yml`](docs/examples/vault.yml): an *actually*
+  `ansible-vault`-encrypted `vault.yml` committed in encrypted form, so the
+  `ansible-vault-encrypted` pre-commit guard
   (`scripts/check-vault-encrypted.sh`) has a real file to pass over and
-  contributors see the end state. Its throwaway password is **`example`**,
-  documented in a comment inside the decrypted payload — it protects only
-  placeholder values, never real secrets. CI re-proves it decrypts
-  (`vault-example` job in `.github/workflows/ci.yml`). View it with:
+  contributors see the end state. It lives under `docs/examples/`
+  **deliberately outside any `inventories/<env>/group_vars/` path**: an
+  encrypted `group_vars/vault.yml` auto-loads for every playbook run against
+  that inventory, so a worked example sitting there would force ordinary
+  development runs to supply the vault password. Parked under `docs/examples/`
+  it never auto-loads, so `ansible-playbook -i inventories/development/hosts …`
+  needs no vault password. Its throwaway password is **`example`**, documented
+  in a comment inside the decrypted payload — it protects only placeholder
+  values, never real secrets. The `**/vault.yml` lint globs and the
+  `vault.yml` pre-commit guard both still cover it by filename. CI re-proves
+  it decrypts (`vault-example` job in `.github/workflows/ci.yml`). View it
+  with:
 
   ```bash
-  ansible-vault view inventories/development/group_vars/vault.yml
+  ansible-vault view docs/examples/vault.yml
   # password: example
   ```
 
