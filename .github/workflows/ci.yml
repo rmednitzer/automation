@@ -143,6 +143,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     timeout-minutes: 30
+    # Non-gating for now: this is the first Molecule scenario and runs
+    # systemd-in-Docker (geerlingguy image) plus pam-auth-update, which has
+    # not yet had a green run in this CI. It could not be validated in the
+    # authoring environment (no Docker). Keep it RUNNING for signal, but do
+    # not block the PR on it until it has been validated on a Docker host;
+    # then remove this line so it gates. See LIMITATIONS.md (L2/L3/L5) and
+    # roles/users/README.md "Account lockout".
+    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
