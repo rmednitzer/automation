@@ -110,6 +110,7 @@ policies:
       - ssh_hardening
       - users
       - ufw
+      - apparmor
 
   POL-002:
     title: "Incident response policy"

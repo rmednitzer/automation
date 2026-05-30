@@ -54,6 +54,15 @@
       tags:
         - common
         - compliance
+    # Mandatory Access Control (AppArmor LSM): ensure it is installed + active
+    # and audit profile coverage early in the run. Safe-by-default — a profile
+    # is only moved to complain/enforce mode when explicitly opted in.
+    - role: apparmor
+      tags:
+        - apparmor
+        - hardening
+        - security
+        - compliance
     - role: users
       tags:
         - users
