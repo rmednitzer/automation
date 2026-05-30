@@ -1,0 +1,52 @@
+---
+# Molecule scenario for the `ssh_hardening` role.
+#
+# NOTE: requires Docker, unavailable in the current CI sandbox, so this
+# scenario is authored and YAML/lint-validated but has NOT been executed
+# here (LIMITATIONS.md L2/L3). Run on a Docker-enabled host:
+#
+#   pip install molecule molecule-plugins[docker] docker
+#   cd roles/ssh_hardening && molecule test
+#
+# Dual-OS matrix (ADR-004): both 24.04 (noble) and 26.04 (resolute) so the
+# hardened sshd_config parses on each release's OpenSSH.
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: ssh-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: ssh-resolute
+    image: geerlingguy/docker-ubuntu2604-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: profile_tasks
+
+verifier:
+  name: ansible

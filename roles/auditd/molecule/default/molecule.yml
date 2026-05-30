@@ -1,0 +1,67 @@
+---
+# Molecule scenario for the `auditd` role.
+#
+# NOTE: requires Docker, unavailable in the current CI sandbox, so this
+# scenario is authored and YAML/lint-validated but has NOT been executed
+# here (LIMITATIONS.md L2/L3). Run on a Docker-enabled host:
+#
+#   pip install molecule molecule-plugins[docker] docker
+#   cd roles/auditd && molecule test
+#
+# CONTAINER CAVEAT: the Linux audit subsystem is host-global; a container
+# usually cannot load rules into the kernel audit netlink. This scenario
+# therefore asserts the deployed *artifacts* (rules file + auditd.conf
+# content, execve rule present) rather than live kernel state. With
+# auditd_immutable=true the rules-reload handler degrades to a
+# reboot-required notice, so converge still completes. Override per host
+# below to keep the converge container-friendly.
+#
+# Dual-OS matrix (ADR-004): 24.04 (noble) + 26.04 (resolute, kernel 7.0).
+
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: auditd-noble
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+  - name: auditd-resolute
+    image: geerlingguy/docker-ubuntu2604-ansible:latest
+    command: /lib/systemd/systemd
+    cgroupns_mode: host
+    privileged: true
+    pre_build_image: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      interpreter_python: auto_silent
+      callbacks_enabled: profile_tasks
+  inventory:
+    host_vars:
+      auditd-noble:
+        # Non-immutable inside the container so a second converge does not
+        # depend on a reboot to reconcile rules (keeps idempotence honest).
+        auditd_immutable: false
+      auditd-resolute:
+        auditd_immutable: false
+
+verifier:
+  name: ansible

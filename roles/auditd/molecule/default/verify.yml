@@ -1,0 +1,75 @@
+---
+# Verify: assert the key outcomes of the auditd role. Asserts the deployed
+# artifacts (rules file + config), not live kernel audit state, because a
+# container cannot own the host-global audit subsystem (see molecule.yml).
+- name: Verify
+  hosts: all
+  become: true
+  tasks:
+    - name: Stat the deployed audit rules file
+      ansible.builtin.stat:
+        path: /etc/audit/rules.d/99-ansible.rules
+      register: auditd_rules_stat
+
+    - name: Assert the audit rules file was deployed with safe perms
+      ansible.builtin.assert:
+        that:
+          - auditd_rules_stat.stat.exists
+          - auditd_rules_stat.stat.mode == '0640'
+        fail_msg: "/etc/audit/rules.d/99-ansible.rules missing or wrong mode"
+
+    - name: Read the deployed audit rules
+      ansible.builtin.slurp:
+        src: /etc/audit/rules.d/99-ansible.rules
+      register: auditd_rules_content
+
+    - name: Decode the rules for assertions
+      ansible.builtin.set_fact:
+        auditd_rules: "{{ auditd_rules_content.content | b64decode }}"
+
+    - name: Assert the execve accounting rule is present (CIS exec key)
+      ansible.builtin.assert:
+        that:
+          - "'-S execve -k exec' in auditd_rules"
+          - "'-F arch=b64 -S execve' in auditd_rules"
+          - "'-F arch=b32 -S execve' in auditd_rules"
+        fail_msg: "execve accounting rule (key=exec) missing from audit rules"
+
+    - name: Assert identity + privileged-command watches are present
+      ansible.builtin.assert:
+        that:
+          - "'-w /etc/passwd -p wa -k identity' in auditd_rules"
+          - "'-w /etc/sudoers -p wa -k sudoers' in auditd_rules"
+          - "'-w /etc/audit/plugins.d/ -p wa -k auditconfig' in auditd_rules"
+        fail_msg: "expected identity / sudoers / plugins.d watch missing"
+
+    - name: Assert the legacy /etc/audisp watch is NOT present (M3)
+      ansible.builtin.assert:
+        that:
+          - "'-w /etc/audisp/' not in auditd_rules"
+        fail_msg: >-
+          dead /etc/audisp/ watch is present — it no longer exists on
+          24.04/26.04 and should have been replaced by the plugins.d watch.
+
+    - name: Stat the deployed auditd.conf
+      ansible.builtin.stat:
+        path: /etc/audit/auditd.conf
+      register: auditd_conf_stat
+
+    - name: Assert auditd.conf was deployed
+      ansible.builtin.assert:
+        that:
+          - auditd_conf_stat.stat.exists
+          - auditd_conf_stat.stat.mode == '0640'
+        fail_msg: "/etc/audit/auditd.conf missing or wrong mode"
+
+    - name: Read auditd.conf
+      ansible.builtin.slurp:
+        src: /etc/audit/auditd.conf
+      register: auditd_conf_content
+
+    - name: Assert ENRICHED log format is configured
+      ansible.builtin.assert:
+        that:
+          - "'log_format = ENRICHED' in (auditd_conf_content.content | b64decode)"
+        fail_msg: "auditd.conf does not set log_format = ENRICHED"

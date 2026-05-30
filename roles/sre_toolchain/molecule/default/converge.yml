@@ -1,0 +1,10 @@
+---
+# Converge: apply the sre_toolchain role (reduced to opa + kubeconform via
+# sre_toolchain_skip in molecule.yml) to the molecule container.
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Include the sre_toolchain role
+      ansible.builtin.include_role:
+        name: sre_toolchain

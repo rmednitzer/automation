@@ -1,0 +1,9 @@
+---
+# Converge: apply the auditd role to the molecule container.
+- name: Converge
+  hosts: all
+  become: true
+  tasks:
+    - name: Include the auditd role
+      ansible.builtin.include_role:
+        name: auditd
