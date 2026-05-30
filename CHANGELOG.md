@@ -9,6 +9,19 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `wazuh_agent` role — HIDS/FIM endpoint (CTL-002, POL-002).**
+  Installs and enrols the Wazuh agent (host intrusion detection, file integrity
+  monitoring, rootcheck) against a Wazuh manager. Adds the Wazuh 4.x APT repo
+  via a `signed-by` keyring (optional fingerprint pin verified when set);
+  deploys `ossec.conf` (manager connection, authd auto-enrollment, syscheck on
+  `/etc` realtime + `/usr/bin`/`/boot`/…, rootcheck, journald + auth/dpkg log
+  collection); writes the enrollment password to `authd.pass` with `no_log`.
+  **Off by default** (`wazuh_agent_enabled: false`); `site-common.yml` runs it
+  only when enabled (requires `wazuh_manager_address`; the password is a vault
+  var — public-repo-safe, no secret committed). Container-guest aware
+  (`wazuh_runtime_managed`). Mapped to CTL-002 + POL-002. NIS2 Art 21.2(a)(b)
+  + Art 23, GDPR Art 5(2), ISO 27001:2022 A.8.15/A.8.16.
+
 - 2026-05-30 **New `dns` role — resolver hardening (POL-003).** Adds DNS
   handling via `systemd-resolved`: a `resolved.conf.d/90-ansible.conf` drop-in
   enabling DNSSEC (`allow-downgrade`), DNS-over-TLS (`opportunistic`), and

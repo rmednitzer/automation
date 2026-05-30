@@ -1,0 +1,95 @@
+<!--
+  {{ ansible_managed }}
+  Wazuh agent configuration (roles/wazuh_agent). HIDS / FIM / rootcheck
+  endpoint reporting to the Wazuh manager. CTL-002, POL-002.
+-->
+<ossec_config>
+  <client>
+    <server>
+      <address>{{ wazuh_manager_address }}</address>
+      <port>{{ wazuh_manager_port }}</port>
+      <protocol>tcp</protocol>
+    </server>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+    <crypto_method>aes</crypto_method>
+    <!-- enrollment is a subsection of <client> per the Wazuh client reference;
+         a top-level <enrollment> is not applied. -->
+    <enrollment>
+      <enabled>yes</enabled>
+      <manager_address>{{ wazuh_registration_address or wazuh_manager_address }}</manager_address>
+      <port>{{ wazuh_registration_port }}</port>
+      <agent_name>{{ wazuh_agent_name }}</agent_name>
+{% set _wazuh_groups = wazuh_agent_groups if wazuh_agent_groups is string else (wazuh_agent_groups | join(',')) %}
+{% if _wazuh_groups | length > 0 %}
+      <groups>{{ _wazuh_groups }}</groups>
+{% endif %}
+      <auto_method>no</auto_method>
+    </enrollment>
+  </client>
+
+  <client_buffer>
+    <disabled>no</disabled>
+    <queue_size>5000</queue_size>
+    <events_per_second>500</events_per_second>
+  </client_buffer>
+
+{% if wazuh_rootcheck_enabled %}
+  <rootcheck>
+    <disabled>no</disabled>
+    <check_files>yes</check_files>
+    <check_trojans>yes</check_trojans>
+    <check_dev>yes</check_dev>
+    <check_sys>yes</check_sys>
+    <check_pids>yes</check_pids>
+    <check_ports>yes</check_ports>
+    <check_if>yes</check_if>
+    <frequency>43200</frequency>
+    <skip_nfs>yes</skip_nfs>
+  </rootcheck>
+{% endif %}
+
+{% if wazuh_syscheck_enabled %}
+  <syscheck>
+    <disabled>no</disabled>
+    <frequency>{{ wazuh_syscheck_frequency }}</frequency>
+    <scan_on_start>yes</scan_on_start>
+    <alert_new_files>yes</alert_new_files>
+{% for d in wazuh_fim_directories %}
+    <directories check_all="yes"{% if d.realtime | default(false) %} realtime="yes"{% endif %}{% if d.report_changes | default(false) %} report_changes="yes"{% endif %}>{{ d.path }}</directories>
+{% endfor %}
+{% for path in wazuh_fim_ignore %}
+    <ignore>{{ path }}</ignore>
+{% endfor %}
+{# nodiff: never send the before/after CONTENT of these paths to the manager
+   (they hold secrets). Metadata-only change detection still applies. #}
+{% for path in wazuh_fim_nodiff %}
+    <nodiff>{{ path }}</nodiff>
+{% endfor %}
+    <skip_nfs>yes</skip_nfs>
+  </syscheck>
+{% endif %}
+
+  <!-- Log collection: journald (24.04/26.04 default) plus key text logs. -->
+  <localfile>
+    <log_format>journald</log_format>
+    <location>journald</location>
+  </localfile>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/auth.log</location>
+  </localfile>
+  <localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/dpkg.log</location>
+  </localfile>
+
+  <active-response>
+    <disabled>no</disabled>
+  </active-response>
+
+  <logging>
+    <log_format>plain</log_format>
+  </logging>
+</ossec_config>

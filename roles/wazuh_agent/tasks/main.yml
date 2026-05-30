@@ -1,0 +1,157 @@
+---
+# Wazuh agent: HIDS / FIM / rootcheck endpoint reporting to a Wazuh manager.
+# CTL-002 (evidence), POL-002 (incident detection).
+
+- name: Assert a Wazuh manager address is configured
+  ansible.builtin.assert:
+    that:
+      - wazuh_manager_address | length > 0
+    fail_msg: >-
+      wazuh_manager_address must be set (e.g. in group_vars) to enrol the
+      agent. Enable the role per environment via wazuh_agent_enabled.
+    quiet: true
+
+# Only a container GUEST skips runtime management (FIM realtime/audit hooks are
+# limited and the service may not run cleanly there); a container/LXC *host*
+# runs the agent normally. The repo + config are applied regardless.
+- name: Determine whether to manage the wazuh-agent runtime
+  ansible.builtin.set_fact:
+    wazuh_runtime_managed: >-
+      {{ wazuh_manage_service | bool
+         and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                  and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+- name: Ensure key/config tooling is present (dearmor + XML validation)
+  ansible.builtin.apt:
+    name:
+      - gnupg          # gpg --dearmor for the repo key
+      - libxml2-utils  # xmllint, to validate the rendered ossec.conf
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Fetch the Wazuh repository signing key (armored)
+  ansible.builtin.get_url:
+    url: "{{ wazuh_apt_key_url }}"
+    dest: /usr/share/keyrings/wazuh.asc
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: wazuh_key_download
+
+# Optional supply-chain pin: verify the fetched ARMORED key BEFORE it is
+# dearmored into the trusted signed-by keyring, so a key that fails the pin is
+# never trusted by apt. (Only runs when wazuh_apt_key_fingerprint is set.)
+- name: Verify the fetched Wazuh key fingerprint (when pinned)
+  when: wazuh_apt_key_fingerprint | length > 0
+  become: true
+  block:
+    - name: Read the fetched key fingerprint
+      # gpg --with-colons emits the fingerprint as field 10 of the `fpr:` line.
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          gpg --show-keys --with-colons /usr/share/keyrings/wazuh.asc
+          | awk -F: '/^fpr:/ { print $10; exit }'
+        executable: /bin/bash
+      register: wazuh_key_fpr
+      changed_when: false
+
+    - name: Assert the fingerprint matches the pinned value
+      ansible.builtin.assert:
+        that:
+          - (wazuh_key_fpr.stdout | upper) == (wazuh_apt_key_fingerprint | replace(' ', '') | upper)
+        fail_msg: >-
+          Wazuh repo key fingerprint ({{ wazuh_key_fpr.stdout }}) does not match
+          wazuh_apt_key_fingerprint ({{ wazuh_apt_key_fingerprint }}). Refusing
+          to trust the repository.
+        quiet: true
+
+- name: Stat the dearmored apt keyring
+  ansible.builtin.stat:
+    path: "{{ wazuh_apt_keyring }}"
+  register: wazuh_keyring_stat
+  become: true
+
+# Dearmor into the trusted keyring AFTER verification, and refresh it whenever
+# the armored key changes (key rotation / corrected pin) or it is missing — not
+# a one-time `creates:`, which would keep apt trusting a stale keyring after a
+# rotation while the fingerprint check (on the armored file) still passed.
+- name: Dearmor the verified Wazuh key into the apt keyring
+  ansible.builtin.command:
+    cmd: "gpg --batch --yes --dearmor -o {{ wazuh_apt_keyring }} /usr/share/keyrings/wazuh.asc"
+  become: true
+  when: wazuh_key_download is changed or not wazuh_keyring_stat.stat.exists
+  changed_when: true
+
+- name: Ensure the apt keyring is world-readable
+  ansible.builtin.file:
+    path: "{{ wazuh_apt_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Configure the Wazuh APT repository (signed-by)
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ wazuh_apt_keyring }}] {{ wazuh_apt_repo_uri }} {{ wazuh_apt_repo_suite }} {{ wazuh_apt_repo_component }}"
+    filename: wazuh
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install the wazuh-agent package
+  ansible.builtin.apt:
+    name: "wazuh-agent{{ ('=' + wazuh_agent_version) if wazuh_agent_version | length > 0 else '' }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+# The enrollment password (when used) lives in /var/ossec/etc/authd.pass, NOT
+# in ossec.conf. no_log so the secret never reaches the Ansible log.
+- name: Deploy the enrollment password
+  ansible.builtin.copy:
+    content: "{{ wazuh_registration_password }}\n"
+    dest: /var/ossec/etc/authd.pass
+    owner: root
+    group: wazuh
+    mode: "0640"
+  become: true
+  no_log: true
+  when: wazuh_registration_password | length > 0
+  notify: Restart wazuh-agent
+
+# When the password is cleared (password-less enrollment, or to stop
+# distributing the secret), remove any previously deployed authd.pass — leaving
+# it would keep a stale secret on disk that the agent would still use.
+- name: Remove a stale enrollment password when password-less
+  ansible.builtin.file:
+    path: /var/ossec/etc/authd.pass
+    state: absent
+  become: true
+  when: wazuh_registration_password | length == 0
+  notify: Restart wazuh-agent
+
+- name: Deploy the wazuh-agent configuration
+  ansible.builtin.template:
+    src: ossec.conf.j2
+    dest: /var/ossec/etc/ossec.conf
+    owner: root
+    group: wazuh
+    mode: "0640"
+    # ossec.conf is security-critical (SECURITY.md): validate the render is
+    # well-formed XML so a malformed template can't replace a working config.
+    validate: "xmllint --noout %s"
+  become: true
+  notify: Restart wazuh-agent
+
+- name: Enable and start wazuh-agent
+  ansible.builtin.systemd_service:
+    name: wazuh-agent
+    enabled: true
+    state: started
+  become: true
+  when: wazuh_runtime_managed

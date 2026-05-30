@@ -1,0 +1,11 @@
+---
+# Wazuh agent role handlers
+
+- name: Restart wazuh-agent
+  ansible.builtin.systemd_service:
+    name: wazuh-agent
+    state: restarted
+  become: true
+  # Skipped in container guests (wazuh_runtime_managed, set in tasks/main.yml):
+  # the config is deployed but the agent is not run there.
+  when: wazuh_runtime_managed

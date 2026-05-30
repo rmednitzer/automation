@@ -1,0 +1,101 @@
+---
+# Wazuh agent role defaults.
+#
+# Compliance references:
+#   - CTL-002 — immutable evidence store: HIDS alerts, FIM (syscheck), and
+#     rootcheck results are forensic evidence forwarded to the Wazuh manager
+#   - POL-002 — incident response: automated detection (HIDS/FIM/rootcheck)
+#     alongside fail2ban / AIDE / rkhunter
+#   - NIS2 Art 21.2(a) risk; Art 21.2(b) incident handling; Art 23 reporting
+#   - GDPR Art 5(2) accountability
+#   - ISO 27001:2022 A.8.15 logging; A.8.16 monitoring activities
+#
+# Targets Ubuntu 24.04 / 26.04 LTS (see docs/ADR-004).
+
+# OFF by default: the agent requires a reachable Wazuh manager and (usually) an
+# enrollment secret, which not every environment has. Enable per environment in
+# group_vars once wazuh_manager_address is set. (site-common.yml gates the role
+# on this flag.)
+wazuh_agent_enabled: false
+
+# --- Package / supply chain ---------------------------------------------------
+
+# Pinned package version, e.g. "4.9.2-1". Empty = latest in the pinned repo.
+wazuh_agent_version: ""
+
+# Wazuh APT repository + signing key (the signed-by keyring is the security
+# anchor: packages are verified against the imported key).
+wazuh_apt_key_url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+wazuh_apt_keyring: "/usr/share/keyrings/wazuh.gpg"
+wazuh_apt_repo_uri: "https://packages.wazuh.com/4.x/apt/"
+wazuh_apt_repo_suite: "stable"
+wazuh_apt_repo_component: "main"
+# OPTIONAL supply-chain hardening: pin the key's full fingerprint (hex, no
+# spaces). Wazuh does not publish it in the install docs, so it is empty by
+# default; when set, the role verifies the imported key matches it and fails
+# otherwise. Obtain it out-of-band, e.g.:
+#   curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --show-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}'
+wazuh_apt_key_fingerprint: ""
+
+# --- Manager connection (NON-secret) -----------------------------------------
+
+# REQUIRED when wazuh_agent_enabled. An IP or hostname — set in group_vars.
+wazuh_manager_address: ""
+wazuh_manager_port: 1514
+# Registration (authd) endpoint; defaults to the manager address/1515.
+wazuh_registration_address: ""
+wazuh_registration_port: 1515
+
+# --- Enrollment ---------------------------------------------------------------
+
+# Agent identity. wazuh_agent_name defaults to the inventory hostname.
+wazuh_agent_name: "{{ inventory_hostname }}"
+wazuh_agent_groups: "default"
+
+# SECRET — never hardcode. Reference a vault variable in group_vars, e.g.:
+#   wazuh_registration_password: "{{ vault_wazuh_registration_password }}"
+# Empty = password-less enrollment (only if the manager permits it).
+wazuh_registration_password: ""
+
+# --- File Integrity Monitoring (syscheck) ------------------------------------
+
+wazuh_syscheck_enabled: true
+wazuh_syscheck_frequency: 43200    # full scan every 12h
+# FIM watch list. report_changes (content diff sent to the manager) is OFF for
+# /etc by default: /etc holds secret material (/etc/shadow, TLS private keys,
+# service credentials), and reporting changes there would copy that content
+# into the Wazuh diff store and FIM alerts. Metadata-only monitoring still
+# detects + alerts on changes (hash/size/mtime) without exfiltrating content.
+# Enable report_changes per path only for directories you know hold no secrets.
+wazuh_fim_directories:
+  - { path: "/etc", realtime: true, report_changes: false }
+  - { path: "/usr/bin", realtime: false, report_changes: false }
+  - { path: "/usr/sbin", realtime: false, report_changes: false }
+  - { path: "/bin", realtime: false, report_changes: false }
+  - { path: "/sbin", realtime: false, report_changes: false }
+  - { path: "/boot", realtime: false, report_changes: false }
+wazuh_fim_ignore:
+  - "/etc/mtab"
+  - "/etc/hosts.deny"
+  - "/etc/mail/statistics"
+  - "/etc/random-seed"
+  - "/etc/adjtime"
+# nodiff: even if report_changes is enabled for a covering path, never send the
+# before/after CONTENT of these secret-bearing paths to the manager (a
+# defence-in-depth backstop on top of report_changes:false above).
+wazuh_fim_nodiff:
+  - "/etc/shadow"
+  - "/etc/gshadow"
+  - "/etc/ssl/private"
+  - "/etc/ssh"
+
+wazuh_rootcheck_enabled: true
+
+# --- Service ------------------------------------------------------------------
+
+# Manage the wazuh-agent service (enroll + enable + restart on config change).
+# Auto-disabled in container GUESTS (FIM realtime/audit hooks are limited and
+# the service may not run cleanly there); the repo + config are still applied.
+# A container/LXC *host* is managed normally (virtualization_role check, as in
+# the auditd / dns roles).
+wazuh_manage_service: true
