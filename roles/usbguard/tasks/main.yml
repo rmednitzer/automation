@@ -15,32 +15,40 @@
              and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
                       and (ansible_virtualization_role | default('host')) == 'guest') }}
 
+    # InsertedDevicePolicy accepts only block/reject/apply-policy (not allow or
+    # keep); present accepts allow/block/reject/keep/apply-policy; implicit
+    # accepts allow/block/reject. Reject values the daemon would refuse.
     - name: Validate the USBGuard policy targets
       ansible.builtin.assert:
         that:
           - usbguard_implicit_policy_target in ['allow', 'block', 'reject']
           - usbguard_present_device_policy in ['allow', 'block', 'reject', 'keep', 'apply-policy']
-          - usbguard_inserted_device_policy in ['allow', 'block', 'reject', 'apply-policy']
+          - usbguard_inserted_device_policy in ['block', 'reject', 'apply-policy']
         fail_msg: >-
           Invalid USBGuard policy target (implicit={{ usbguard_implicit_policy_target }},
           present={{ usbguard_present_device_policy }},
           inserted={{ usbguard_inserted_device_policy }}).
         quiet: true
 
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: apt
+      when: usbguard_runtime_managed | bool
+
     # The Debian/Ubuntu usbguard package auto-enables and starts the daemon on
-    # install (dh_installsystemd). When NOT enforcing, mask the unit FIRST so
-    # the package cannot bring USB enforcement up during install, and so
-    # audit-only mode keeps the daemon firmly off (masked = cannot start). The
-    # enforce path unmasks it below. Masking is idempotent, so audit-only runs
-    # converge cleanly.
-    - name: Mask the USBGuard daemon when not enforcing
+    # install (dh_installsystemd). Mask the unit BEFORE the first install — in
+    # BOTH modes — so the package can never bring the daemon up under its
+    # default policy (plugdev IPC ACL, apply-policy on present devices). Gated
+    # on "not yet installed" so steady-state enforcing hosts don't churn; the
+    # enforce path unmasks it explicitly once our policy is in place.
+    - name: Mask usbguard before its first install (suppress package auto-start)
       ansible.builtin.systemd_service:
         name: usbguard
         masked: true
       become: true
       when:
         - usbguard_runtime_managed | bool
-        - not (usbguard_enforce | bool)
+        - "'usbguard' not in ansible_facts.packages"
 
     - name: Install USBGuard
       ansible.builtin.apt:
@@ -74,6 +82,28 @@
       when:
         - usbguard_runtime_managed | bool
         - usbguard_audit | bool
+
+    # --- Audit-only: daemon must be OFF --------------------------------------
+    # Masking only changes the unit file; an already-running daemon (pre-existing
+    # install, or enforcement just turned off) keeps enforcing. Stop it, then
+    # mask so it cannot restart.
+    - name: Stop the USBGuard daemon when not enforcing
+      ansible.builtin.systemd_service:
+        name: usbguard
+        state: stopped
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - not (usbguard_enforce | bool)
+
+    - name: Mask the USBGuard daemon when not enforcing
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: true
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - not (usbguard_enforce | bool)
 
     # --- Opt-in enforcement ---------------------------------------------------
     - name: Unmask the USBGuard daemon for enforcement
@@ -139,6 +169,9 @@
         - usbguard_enforce | bool
       notify: Restart usbguard
 
+    # Start under OUR config (rules + daemon.conf written above, plugdev ACL
+    # removed). Because the unit was masked across the install, this is the
+    # first time the daemon comes up, so it never runs under package defaults.
     - name: Enable and start the USBGuard daemon
       ansible.builtin.systemd_service:
         name: usbguard

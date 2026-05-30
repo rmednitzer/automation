@@ -24,8 +24,10 @@ console keyboard/mouse), so the role is conservative:
 - **Enforcement is opt-in.** `usbguard_enforce` is `false` by default — a
   baseline run installs USBGuard and audits the device count but does **not**
   enable the blocking daemon. Because the package auto-starts the daemon on
-  install, audit-only mode **masks** `usbguard.service` so it cannot come up and
-  start enforcing with the package's default policy.
+  install, the unit is **masked before its first install** (in both modes) so it
+  never comes up under the package's default policy; audit-only mode also
+  **stops** the daemon if it was already running and keeps it masked, so turning
+  enforcement off genuinely disables it.
 - **Connected devices are never deauthorised.** When you do enforce,
   `PresentDevicePolicy=keep` leaves already-attached devices (keyboard, mouse,
   existing storage) in their authorised state, and `PresentControllerPolicy=keep`
