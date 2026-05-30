@@ -43,6 +43,7 @@ System audit logging via auditd for Ubuntu 24.04 LTS and 26.04 LTS
 | `auditd_compliance_rules` | `true` | Emit NIS2/GDPR extended rule block |
 | `auditd_custom_rules` | `[]` | Raw `auditctl` lines appended verbatim |
 | `auditd_immutable` | `true` | Append `-e 2` to lock the rule set until reboot |
+| `auditd_manage_runtime` | `true` | Manage the running daemon (start/enable, load rules, reload config). Auto-disabled inside containers (the audit subsystem is host-global/not namespaced, so auditd can't start and `auditctl`/`augenrules` fail); `auditd.conf` + rules are still deployed. Set `false` to force config-only |
 
 Full list in `defaults/main.yml`.
 
