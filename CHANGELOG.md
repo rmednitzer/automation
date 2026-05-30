@@ -9,6 +9,22 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **`auditd` container-awareness (CTL-002/003 — Molecule
+  follow-up).** The `auditd` role now computes `auditd_runtime_managed`
+  (honours the new `auditd_manage_runtime` default and requires a
+  non-container `ansible_virtualization_type`) and gates the daemon
+  start/enable plus the rule-load and config-reload handlers on it. The Linux
+  audit subsystem is host-global and not namespaced, so in a container auditd
+  cannot start and `auditctl`/`augenrules` fail (EPERM) — previously the
+  daemon-start task aborted the converge, which kept the auditd Molecule leg
+  red. `auditd.conf` and the rules file are still deployed (config-as-code),
+  so the container verify still asserts them; real hosts are unaffected
+  (their virt type is never a container, so the daemon is managed normally).
+  Validated: ansible-lint 0/0, the gating expression across virt types
+  (docker/lxc → skip; kvm/VMware/physical → manage), and the override. The
+  full Molecule matrix stays on-demand (LIMITATIONS L2) until the remaining
+  scenarios are confirmed on a Docker host.
+
 - 2026-05-30 PR-review fixes (Copilot + Codex) on the dual-support /
   sysctl / vault / molecule work. No CTL-/POL- catalog membership changed
   (CTL-002, CTL-003, POL-004 cross-references touched in `common` /

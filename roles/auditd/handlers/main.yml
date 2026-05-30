@@ -40,6 +40,10 @@
   register: auditd_rules_reload
   changed_when: "'AUDITD_RULES_LOADED' in auditd_rules_reload.stdout"
   become: true
+  # Skipped in containers (auditd_runtime_managed, set in tasks/main.yml):
+  # auditctl/augenrules need the host-global audit netlink, which is
+  # unavailable there. The rules file is still deployed for verification.
+  when: auditd_runtime_managed
 
 # --- Auditd daemon configuration (auditd.conf) -----------------------------
 
@@ -54,3 +58,6 @@
   changed_when: auditd_service_reload.rc == 0
   failed_when: auditd_service_reload.rc != 0
   become: true
+  # Skipped in containers (auditd_runtime_managed): auditd cannot start there,
+  # so there is no daemon to reload. auditd.conf is still deployed.
+  when: auditd_runtime_managed

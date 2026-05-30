@@ -1,6 +1,23 @@
 ---
 # Auditd role for Ubuntu 24.04/26.04 LTS
 
+# Decide whether to manage the running auditd daemon. The audit subsystem is
+# host-global (not namespaced), so inside a container GUEST auditd cannot start
+# and auditctl/augenrules fail (EPERM); managing it there aborts the play.
+# Compute the effective value once: honour auditd_manage_runtime AND skip only
+# when this host is a container *guest* — i.e. a container virtualization type
+# AND virtualization_role == 'guest'. The role check matters because an LXC/
+# container HOST reports type 'lxc' with role 'host' yet owns the real,
+# host-global audit subsystem and must still manage it. The config + rules
+# files below are deployed regardless (config-as-code) — only the runtime
+# steps are gated.
+- name: Determine whether to manage the auditd runtime
+  ansible.builtin.set_fact:
+    auditd_runtime_managed: >-
+      {{ auditd_manage_runtime | bool
+         and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                  and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 - name: Install auditd and audispd-plugins
   ansible.builtin.apt:
     name:
@@ -40,3 +57,7 @@
     state: started
     enabled: true
   become: true
+  # Skipped in containers (see auditd_runtime_managed): auditd cannot own the
+  # host-global audit subsystem there. The config/rules above are still
+  # deployed, so a container converge + verify exercises the config-as-code.
+  when: auditd_runtime_managed

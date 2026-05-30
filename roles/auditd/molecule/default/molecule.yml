@@ -8,13 +8,16 @@
 #   pip install molecule molecule-plugins[docker] docker
 #   cd roles/auditd && molecule test
 #
-# CONTAINER CAVEAT: the Linux audit subsystem is host-global; a container
-# usually cannot load rules into the kernel audit netlink. This scenario
-# therefore asserts the deployed *artifacts* (rules file + auditd.conf
-# content, execve rule present) rather than live kernel state. With
-# auditd_immutable=true the rules-reload handler degrades to a
-# reboot-required notice, so converge still completes. Override per host
-# below to keep the converge container-friendly.
+# CONTAINER CAVEAT: the Linux audit subsystem is host-global and not
+# namespaced, so inside a container auditd cannot start and
+# auditctl/augenrules fail (EPERM). The role detects this
+# (auditd_runtime_managed, see roles/auditd/tasks/main.yml) and skips the
+# daemon start + the rule-load / config-reload handlers while still deploying
+# auditd.conf and the rules file. This scenario therefore asserts the deployed
+# *artifacts* (rules file + auditd.conf content, execve rule present) rather
+# than live kernel state, and converge + idempotence complete cleanly in a
+# container. (Before that guard the daemon-start task aborted the converge —
+# this is what kept the auditd Molecule leg red.)
 #
 # Dual-OS matrix (ADR-004): 24.04 (noble) + 26.04 (resolute, kernel 7.0).
 
