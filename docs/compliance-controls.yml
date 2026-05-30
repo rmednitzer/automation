@@ -68,6 +68,7 @@ controls:
       - log_forwarding
       - common
       - sre_toolchain
+      - wazuh_agent
 
   CTL-003:
     title: "Logging legality, minimisation, and forensic correlation"
@@ -129,6 +130,7 @@ policies:
       - ntp
       - log_forwarding
       - sre_toolchain
+      - wazuh_agent
 
   POL-003:
     title: "Cryptography policy"

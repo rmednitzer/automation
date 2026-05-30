@@ -101,3 +101,13 @@
         - log-forwarding
         - logging
         - compliance
+    # HIDS/FIM endpoint reporting to a Wazuh manager. Off unless an
+    # environment sets wazuh_agent_enabled (requires a manager + enrolment
+    # secret), so the fleet-wide baseline run is unaffected by default.
+    - role: wazuh_agent
+      when: wazuh_agent_enabled | default(false)
+      tags:
+        - wazuh
+        - hids
+        - security
+        - compliance
