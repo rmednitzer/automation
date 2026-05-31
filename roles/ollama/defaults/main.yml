@@ -1,0 +1,54 @@
+---
+# Local LLM inference runtime (Ollama) — role defaults.
+#
+# Compliance references:
+#   - POL-004 — data classification & handling: running inference LOCALLY keeps
+#     prompts/data on-premises instead of sending them to a third-party model
+#     API, so Confidential/Restricted data never leaves the estate.
+#   - GDPR Art 25 — data protection by design; Art 5(1)(f) — confidentiality;
+#     Art 44 — avoids third-country transfers inherent in hosted AI APIs.
+#   - NIS2 Art 21.2(e); ISO 27001:2022 A.5.12 classification, A.8.9
+#     configuration management.
+#
+# AI-native capability #7. Targets dedicated INFERENCE hosts (e.g. the GPU
+# compute host), NOT the fleet baseline — run via playbooks/local-inference.yml.
+# Off by default. Installs a pinned, checksum-verified Ollama release (ADR-002
+# supply-chain stance) and a hardened, localhost-bound service.
+
+# Off by default; the playbook sets this true for inference hosts.
+ollama_enabled: false
+
+# Pinned release — REQUIRED when enabled (no floating "latest"). The SHA256 is
+# published on the GitHub release; pin the one you verified out-of-band.
+#   ollama_version: "0.5.7"
+#   ollama_checksum: "sha256:<hex>"     # or a checksum-file URL
+ollama_version: ""
+ollama_checksum: ""
+# tgz extracts to <prefix>/bin/ollama and <prefix>/lib/ollama (Ollama's docs
+# extract to /usr).
+ollama_install_prefix: /usr
+ollama_download_baseurl: "https://github.com/ollama/ollama/releases/download"
+
+# Service account and data location (OLLAMA_MODELS lives under the data dir).
+ollama_user: ollama
+ollama_group: ollama
+ollama_data_dir: /var/lib/ollama
+
+# Bind LOCALHOST only by default — the Ollama API has no authentication, so it
+# must not be exposed on the network without a fronting authenticated proxy.
+ollama_host: "127.0.0.1"
+ollama_port: 11434
+# Extra OLLAMA_* environment (e.g. {OLLAMA_KEEP_ALIVE: "5m", OLLAMA_NUM_PARALLEL: "1"}).
+ollama_environment: {}
+
+# Supplementary groups the service user needs for NVIDIA GPU device access.
+ollama_gpu_groups:
+  - video
+  - render
+
+# Models to pull once the service is up (off by default — model blobs are large).
+#   ollama_models: ["llama3.1:8b"]
+ollama_models: []
+
+# Manage the runtime (service + model pulls). Auto-off in container guests.
+ollama_manage_runtime: true

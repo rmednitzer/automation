@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **New `ollama` role — local LLM inference runtime (POL-004).**
+  First AI-native capability. Provisions [Ollama](https://ollama.com) on
+  dedicated inference hosts (e.g. the GPU compute host) so inference stays
+  **on-premises** — prompts/data never go to a third-party model API (GDPR Art
+  25 / Art 44 data sovereignty). Pinned + checksum-verified install (GitHub
+  release tgz via `get_url checksum:`, ADR-002 pattern — no `curl | sh`),
+  `ollama` system user, and a **hardened, localhost-bound** systemd unit
+  (`NoNewPrivileges`, `ProtectSystem=full`, …; moderate for GPU device access).
+  Off by default; requires a pinned `ollama_version` + `ollama_checksum`
+  (asserted). Optional model pulls; NVIDIA GPU auto-detected (CPU fallback,
+  drivers not installed). Run via `playbooks/local-inference.yml`
+  (`inference_hosts` group), NOT `site-common.yml`. Container-guest aware.
+  Mapped to POL-004 in `docs/compliance-controls.yml`. GDPR Art 25 / Art 5(1)(f)
+  / Art 44, NIS2 Art 21.2(e), ISO 27001:2022 A.5.12 / A.8.9.
+
 - 2026-05-31 **New `redfish` role + ADR-005 — aspirational out-of-band (BMC)
   management (POL-001).** Forward-looking capability for when the fleet gains
   enterprise hardware with BMCs (iDRAC/iLO/XCC/OpenBMC). `docs/ADR-005` records
