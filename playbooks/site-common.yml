@@ -140,6 +140,15 @@
         - log-forwarding
         - logging
         - compliance
+    # Modern log shipper (Vector: journald -> SIEM). Off unless an environment
+    # sets vector_enabled and defines vector_sinks (a SIEM endpoint, usually a
+    # vault secret), so the fleet-wide baseline run is unaffected by default.
+    - role: vector
+      when: vector_enabled | default(false)
+      tags:
+        - vector
+        - logging
+        - compliance
     # HIDS/FIM endpoint reporting to a Wazuh manager. Off unless an
     # environment sets wazuh_agent_enabled (requires a manager + enrolment
     # secret), so the fleet-wide baseline run is unaffected by default.

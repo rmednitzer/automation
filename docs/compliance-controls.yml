@@ -69,6 +69,7 @@ controls:
       - common
       - sre_toolchain
       - wazuh_agent
+      - vector
 
   CTL-003:
     title: "Logging legality, minimisation, and forensic correlation"
@@ -88,6 +89,7 @@ controls:
       - ntp
       - log_forwarding
       - common
+      - vector
 
 # ---------------------------------------------------------------------------
 # ISMS Policy Set (POL)
@@ -154,6 +156,7 @@ policies:
       - log_forwarding
       - aide
       - dns
+      - vector
 
   POL-004:
     title: "Data classification and handling policy"

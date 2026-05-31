@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# Vector log shipper (roles/vector). journald -> SIEM. CTL-002, CTL-003.
+# Managed by Ansible; edit the role vars (vector_sources / _transforms / _sinks)
+# rather than this file.
+data_dir: "{{ vector_data_dir }}"
+
+sources:
+{{ vector_sources | to_nice_yaml(indent=2) | indent(2, true) }}
+{% if vector_transforms | length > 0 %}
+transforms:
+{{ vector_transforms | to_nice_yaml(indent=2) | indent(2, true) }}
+{% endif %}
+sinks:
+{{ vector_sinks | to_nice_yaml(indent=2) | indent(2, true) }}
