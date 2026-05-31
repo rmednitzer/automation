@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **New `rsyslog_hardening` role — local rsyslog hardening
+  (CTL-003).** Completes the logging capability ("Vector ships, rsyslog local").
+  Deploys `/etc/rsyslog.d/00-hardening.conf`: restrictive create-modes
+  (`$FileCreateMode 0640`, `$DirCreateMode 0750`, `$Umask 0027`), privilege drop
+  (`$PrivDropToUser/Group syslog`), and `$RepeatedMsgReduction`. Validates the
+  whole config with `rsyslogd -N1` before any restart (a bad drop-in aborts
+  before the running daemon is touched), and audits for unintended network log
+  reception (`imtcp`/`imudp`) — warn by default, opt-in hard-fail via
+  `rsyslog_hardening_fail_on_network_input`. Acts only when rsyslog is present
+  (journald-only hosts are skipped, no forced install); container-guest aware
+  (`rsyslog_hardening_runtime_managed`); never touches the `log_forwarding` /
+  `vector` forwarding config. Added to `site-common.yml` after the log shippers
+  and mapped to CTL-003 in `docs/compliance-controls.yml`. NIS2 Art 21.2(a),
+  GDPR Art 5(1)(c) / Art 5(1)(f), ISO 27001:2022 A.8.15.
+
 - 2026-05-31 **New `vector` role — modern log shipper to SIEM (CTL-002,
   CTL-003).** Adds [Vector](https://vector.dev) (by Datadog) as the modern
   complement to the rsyslog-based `log_forwarding`: reads journald and ships to

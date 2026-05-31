@@ -1,0 +1,43 @@
+---
+# Local rsyslog hardening role defaults.
+#
+# Compliance references:
+#   - CTL-003 — logging legality, minimisation & forensic correlation:
+#     restrict permissions on the logs rsyslog writes, drop daemon privileges,
+#     collapse repeated messages, and keep the local daemon from accepting
+#     network log input it shouldn't.
+#   - NIS2 Art 21.2(a) — information system security (logging integrity).
+#   - GDPR Art 5(1)(c) — data minimisation (repeated-message reduction);
+#     Art 5(1)(f) — integrity & confidentiality (log file permissions).
+#   - ISO 27001:2022 A.8.15 — logging.
+#
+# Complements `common` (which owns journald) and `log_forwarding` / `vector`
+# (which ship logs). This role hardens the LOCAL rsyslog daemon. Targets Ubuntu
+# 24.04 / 26.04 LTS.
+
+rsyslog_hardening_enabled: true
+
+# Permissions rsyslog applies to log files / directories it creates (CIS 4.2.x:
+# log files not more permissive than 0640).
+rsyslog_hardening_file_create_mode: "0640"
+rsyslog_hardening_dir_create_mode: "0750"
+rsyslog_hardening_umask: "0027"
+
+# Drop root after startup to this user/group (Ubuntu's rsyslog user is syslog,
+# a member of adm so it can still read system logs). Empty user disables the
+# privilege-drop directives.
+rsyslog_hardening_priv_drop_user: "syslog"
+rsyslog_hardening_priv_drop_group: "syslog"
+
+# Collapse bursts of identical messages ("last message repeated N times").
+rsyslog_hardening_repeated_msg_reduction: true
+
+# Network log RECEPTION (imtcp/imudp) turns a host into a syslog server and is
+# off on a stock Ubuntu host. The role always AUDITS for it; set this true to
+# hard-FAIL when a listener is found (leave false on an intended syslog server).
+rsyslog_hardening_fail_on_network_input: false
+
+# Manage the runtime (validate config, restart). Auto-off in container GUESTS
+# (the host daemon isn't the guest's concern), same ansible_virtualization_role
+# check as the other hardening roles. The drop-in is still written.
+rsyslog_hardening_manage_runtime: true

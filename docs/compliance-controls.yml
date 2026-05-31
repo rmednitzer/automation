@@ -90,6 +90,7 @@ controls:
       - log_forwarding
       - common
       - vector
+      - rsyslog_hardening
 
 # ---------------------------------------------------------------------------
 # ISMS Policy Set (POL)
