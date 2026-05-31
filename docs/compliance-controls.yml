@@ -18,6 +18,18 @@
 #   - Cyber Resilience Act (EU 2024/2847) — Annex I
 #   - GDPR (EU 2016/679) / Austrian DSG — Art 5, 25, 32
 #   - ISO/IEC 27001:2022 — Annex A controls
+#
+# Every framework listed above MUST be cited by at least one regulatory_mapping
+# entry below — the validator's framework-coverage check (rule 9) fails the
+# build otherwise, so a declared-but-unmapped framework cannot ship.
+#
+# Citation conventions:
+#   - CRA citations are to Annex I, Part I, point (2)(a)-(m) (the product
+#     cybersecurity requirements), verified against EUR-Lex CELEX 32024R2847.
+#   - NISG 2026 is the Austrian transposition of NIS2. Until the Austrian
+#     section-level numbering is final, NISG entries reference the transposed
+#     NIS2 article (the same risk-management/reporting duties in national law);
+#     they are deliberately not pinned to a § number we cannot yet verify.
 
 # ---------------------------------------------------------------------------
 # Control Catalog (CTL)
@@ -40,6 +52,8 @@ controls:
       - "GDPR Art 32 — security of processing"
       - "ISO 27001:2022 A.5.15 — access control"
       - "ISO 27001:2022 A.8.5 — secure authentication"
+      - "CRA Annex I, Part I (2)(d) — protection from unauthorised access by appropriate control mechanisms (authentication, identity and access management)"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(i) (access control)"
     roles:
       - ssh_hardening
       - users
@@ -55,6 +69,8 @@ controls:
       - "GDPR Art 5(2) — accountability principle"
       - "GDPR Art 32 — security of processing"
       - "ISO 27001:2022 A.8.15 — logging"
+      - "CRA Annex I, Part I (2)(l) — recording and monitoring of relevant internal activity, including access to or modification of data"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(a) (information system security)"
     retention_tiers:
       governance: "10 years (3650 days)"
       incidents: "5 years (1825 days)"
@@ -84,6 +100,8 @@ controls:
       - "GDPR Art 5(2) — accountability"
       - "ISO 27001:2022 A.8.15 — logging"
       - "ISO 27001:2022 A.8.17 — clock synchronisation"
+      - "CRA Annex I, Part I (2)(l) — recording and monitoring of relevant internal activity"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(a) (information system security)"
     roles:
       - auditd
       - ntp
@@ -109,6 +127,9 @@ policies:
       - "GDPR Art 32 — security of processing"
       - "ISO 27001:2022 A.5.15 — access control"
       - "ISO 27001:2022 A.8.3 — information access restriction"
+      - "CRA Annex I, Part I (2)(d) — protection from unauthorised access by appropriate control mechanisms"
+      - "CRA Annex I, Part I (2)(j) — limit attack surfaces, including external interfaces"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(i) (access control)"
     roles:
       - ssh_hardening
       - users
@@ -130,6 +151,8 @@ policies:
       - "NIS2 Art 23 — reporting obligations"
       - "GDPR Art 33 — notification of personal data breach"
       - "ISO 27001:2022 A.5.24 — information security incident management"
+      - "CRA Annex I, Part I (2)(k) — reduce the impact of an incident using exploitation-mitigation mechanisms"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(b) (incident handling) and Art 23 (reporting)"
     roles:
       - fail2ban
       - aide
@@ -151,6 +174,8 @@ policies:
       - "NIS2 Art 21.2(h) — policies on the use of cryptography"
       - "GDPR Art 32(1)(a) — encryption of personal data"
       - "ISO 27001:2022 A.8.24 — use of cryptography"
+      - "CRA Annex I, Part I (2)(e) — confidentiality of data via state-of-the-art encryption at rest and in transit"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(h) (cryptography and encryption)"
     roles:
       - ssh_hardening
       - users
@@ -172,6 +197,8 @@ policies:
       - "GDPR Art 25 — data protection by design"
       - "ISO 27001:2022 A.5.12 — classification of information"
       - "ISO 27001:2022 A.5.13 — labelling of information"
+      - "CRA Annex I, Part I (2)(g) — process only data that is adequate, relevant and limited to what is necessary (data minimisation)"
+      - "CRA Annex I, Part I (2)(e) — confidentiality of processed data (no leakage via core dumps, swap, or temporary files)"
     roles:
       - common
       - auditd
@@ -189,5 +216,7 @@ policies:
     regulatory_mapping:
       - "NIS2 Art 21.2(e) — security in network and information systems"
       - "ISO 27001:2022 A.8.32 — change management"
+      - "CRA Annex I, Part I (2)(l) — recording and monitoring of modifications to data, services, or configuration"
+      - "NISG 2026 — Austrian transposition of NIS2 Art 21.2(e) (security in acquisition, development and maintenance)"
     roles:
       - auditd
