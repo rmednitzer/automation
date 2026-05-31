@@ -10,13 +10,22 @@
 # auditd.service ships RefuseManualStop=yes, so `systemctl restart auditd`
 # is refused. The audisp-remote plugin (au-remote.conf) and its destination
 # (audisp-remote.conf) are re-read by auditd on restart; use the SysV init
-# path (permitted where systemctl is refused) rather than systemd. This
-# matches roles/auditd "Reload auditd configuration".
+# path (permitted where systemctl is refused) rather than systemd.
+#
+# NOTE: this handler has a DISTINCT name from the auditd role's "Reload auditd
+# configuration". Handler names are global across a play, so a shared name
+# collapses to one handler (last loaded wins) — and since this role loads after
+# auditd, it would shadow auditd's container-guest-gated handler and run an
+# unconditional `service auditd restart` on a guest. It is gated on
+# log_forwarding_runtime_managed for the same container-safety reason.
 # Refs: auditd(8), audisp-remote(8), auditd.conf(5) — "RefuseManualStop".
-- name: Reload auditd configuration
+- name: Reload auditd for log forwarding
   ansible.builtin.command:  # noqa: command-instead-of-module
     cmd: service auditd restart
   register: log_forwarding_auditd_reload
   changed_when: log_forwarding_auditd_reload.rc == 0
   failed_when: log_forwarding_auditd_reload.rc != 0
   become: true
+  # Skipped in container guests (log_forwarding_runtime_managed, set in
+  # tasks/main.yml): auditd can't run there, so there is no daemon to reload.
+  when: log_forwarding_runtime_managed | default(false)
