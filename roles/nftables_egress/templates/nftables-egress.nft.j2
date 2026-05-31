@@ -16,7 +16,10 @@ table inet fw_egress {
     # why enforce mode cannot lock the administrator out.
     oifname "lo" accept
     ct state established,related accept
+{% if nftables_egress_mode == 'enforce' %}
+    # Only enforce mode changes traffic; observe never drops (it is log-only).
     ct state invalid drop
+{% endif %}
 
     # ICMP / ICMPv6 (incl. IPv6 ND and path-MTU discovery).
     meta l4proto { icmp, ipv6-icmp } accept

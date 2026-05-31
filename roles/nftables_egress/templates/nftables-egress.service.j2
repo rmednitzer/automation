@@ -2,8 +2,11 @@
 [Unit]
 Description=Load the fw_egress nftables ruleset (roles/nftables_egress)
 Documentation=man:nft(8)
-# Load after ufw so its tables exist first; our separate table composes with it.
-After=network-pre.target ufw.service
+# network-pre.target is the systemd hook for firewall setup: order BEFORE it so
+# the egress policy is in place before interfaces/services generate outbound
+# traffic. ufw hooks the same target with its own (separate) table, so no
+# ordering between the two is needed.
+Before=network-pre.target
 Wants=network-pre.target
 
 [Service]

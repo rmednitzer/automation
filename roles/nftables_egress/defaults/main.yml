@@ -44,10 +44,12 @@ nftables_egress_mode: "off"
 nftables_egress_allow:
   - { proto: "udp", dport: 53, comment: "DNS" }
   - { proto: "tcp", dport: 53, comment: "DNS over TCP" }
+  - { proto: "tcp", dport: 853, comment: "DNS-over-TLS (the dns role's strict DoT mode)" }
   - { proto: "udp", dport: 123, comment: "NTP" }
   - { proto: "tcp", dport: 80, comment: "HTTP (apt)" }
   - { proto: "tcp", dport: 443, comment: "HTTPS (apt / updates / APIs)" }
-  - { proto: "udp", dport: 67, comment: "DHCP client" }
+  - { proto: "udp", dport: 67, comment: "DHCP client (IPv4)" }
+  - { proto: "udp", dport: 547, comment: "DHCPv6 client" }
 # Raw nft rule fragments for anything more specific — destination CIDRs, the
 # SIEM collector, the Wazuh manager, … — rendered verbatim into the chain, e.g.:
 #   - 'ip daddr 10.20.0.10 tcp dport 514 accept comment "rsyslog SIEM"'
