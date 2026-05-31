@@ -1,0 +1,142 @@
+---
+# Vector: modern log shipper (journald -> SIEM). CTL-002 (evidence), CTL-003
+# (centralised logging / forensic correlation).
+
+- name: Assert a Vector sink is configured
+  ansible.builtin.assert:
+    that:
+      - vector_sinks | length > 0
+    fail_msg: >-
+      vector_sinks must define at least one sink (where logs go) when the
+      vector role is enabled — there is no safe default destination. See
+      defaults/main.yml for examples; reference any secret via a vault var.
+    quiet: true
+
+# Only a container GUEST skips runtime management (the journald source needs the
+# host journal and the unit may not run cleanly there); a container/LXC *host*
+# runs Vector normally. The repo + config are applied regardless.
+- name: Determine whether to manage the Vector runtime
+  ansible.builtin.set_fact:
+    vector_runtime_managed: >-
+      {{ vector_manage_service | bool
+         and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                  and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+- name: Ensure gnupg is present (for dearmoring the repo key)
+  ansible.builtin.apt:
+    name: gnupg
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Fetch the Datadog/Vector repository signing key (armored)
+  ansible.builtin.get_url:
+    url: "{{ vector_apt_key_url }}"
+    dest: /usr/share/keyrings/vector-datadog.asc
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  register: vector_key_download
+
+# Optional supply-chain pin: verify the fetched ARMORED key BEFORE it is
+# dearmored into the trusted signed-by keyring, so a key failing the pin is
+# never trusted by apt. (Only runs when vector_apt_key_fingerprint is set.)
+- name: Verify the fetched Vector/Datadog key fingerprint (when pinned)
+  when: vector_apt_key_fingerprint | length > 0
+  become: true
+  block:
+    - name: Read the fetched key fingerprint
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          gpg --show-keys --with-colons /usr/share/keyrings/vector-datadog.asc
+          | awk -F: '/^fpr:/ { print $10; exit }'
+        executable: /bin/bash
+      register: vector_key_fpr
+      changed_when: false
+
+    - name: Assert the fingerprint matches the pinned value
+      ansible.builtin.assert:
+        that:
+          - (vector_key_fpr.stdout | upper) == (vector_apt_key_fingerprint | replace(' ', '') | upper)
+        fail_msg: >-
+          Datadog/Vector repo key fingerprint ({{ vector_key_fpr.stdout }}) does
+          not match vector_apt_key_fingerprint. Refusing to trust the repository.
+        quiet: true
+
+- name: Stat the dearmored apt keyring
+  ansible.builtin.stat:
+    path: "{{ vector_apt_keyring }}"
+  register: vector_keyring_stat
+  become: true
+
+# Dearmor into the trusted keyring AFTER verification, refreshing it whenever the
+# armored key changes (rotation) or it is missing — not a one-time creates:,
+# which would keep apt trusting a stale keyring after a key rotation.
+- name: Dearmor the verified key into the apt keyring
+  ansible.builtin.command:
+    cmd: "gpg --batch --yes --dearmor -o {{ vector_apt_keyring }} /usr/share/keyrings/vector-datadog.asc"
+  become: true
+  when: vector_key_download is changed or not vector_keyring_stat.stat.exists
+  changed_when: true
+
+- name: Ensure the apt keyring is world-readable
+  ansible.builtin.file:
+    path: "{{ vector_apt_keyring }}"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Configure the Vector APT repository (signed-by)
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by={{ vector_apt_keyring }}] {{ vector_apt_repo_uri }} {{ vector_apt_repo_suite }} {{ vector_apt_repo_component }}"
+    filename: vector
+    state: present
+    update_cache: true
+  become: true
+
+- name: Install Vector
+  ansible.builtin.apt:
+    name: "vector{{ ('=' + vector_version) if vector_version | length > 0 else '' }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Ensure the Vector config and data directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+  loop:
+    - "{{ vector_config_dir }}"
+    - "{{ vector_data_dir }}"
+  become: true
+
+# vector.yaml may carry a sink secret (token), so it is group-readable by the
+# vector service user only. --config-yaml forces YAML parsing of the temp file
+# (which lacks a .yaml suffix); --no-environment skips sink health checks so the
+# validation is offline and side-effect-free.
+- name: Deploy the Vector configuration
+  ansible.builtin.template:
+    src: vector.yaml.j2
+    dest: "{{ vector_config_dir }}/vector.yaml"
+    owner: root
+    group: vector
+    mode: "0640"
+    validate: "vector validate --no-environment --config-yaml %s"
+  become: true
+  notify: Restart vector
+
+- name: Enable and start Vector
+  ansible.builtin.systemd_service:
+    name: vector
+    enabled: true
+    state: started
+  become: true
+  when: vector_runtime_managed | bool

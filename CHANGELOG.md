@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **New `vector` role — modern log shipper to SIEM (CTL-002,
+  CTL-003).** Adds [Vector](https://vector.dev) (by Datadog) as the modern
+  complement to the rsyslog-based `log_forwarding`: reads journald and ships to
+  a configurable SIEM sink. Adds the Vector APT repo via a `signed-by` Datadog
+  keyring (armored key fetched, fingerprint verified before dearmor when
+  `vector_apt_key_fingerprint` is pinned, refreshed on rotation); deploys
+  `/etc/vector/vector.yaml` from `vector_sources`/`_transforms`/`_sinks`,
+  **validated with `vector validate`** before placement. **Off by default**
+  (`vector_enabled: false`); `site-common.yml` runs it only when enabled, and
+  the role asserts `vector_sinks` is set (no safe default destination) — sink
+  secrets are referenced via vault vars, nothing committed (public-repo-safe).
+  Container-guest aware (`vector_runtime_managed`). Mapped to CTL-002 + CTL-003
+  in `docs/compliance-controls.yml`. POL-003 (TLS in transit), NIS2 Art
+  21.2(a)(b), GDPR Art 5(2) / Art 32, ISO 27001:2022 A.8.15 / A.8.16.
+
 - 2026-05-30 **New `nftables_egress` role — default-deny egress filtering
   (POL-001).** Final defense-in-depth piece. Adds an allow-listed OUTBOUND
   policy with nftables in a **separate `inet fw_egress` table** that composes

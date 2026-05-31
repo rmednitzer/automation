@@ -1,0 +1,11 @@
+---
+# Vector role handlers
+
+- name: Restart vector
+  ansible.builtin.systemd_service:
+    name: vector
+    state: restarted
+  become: true
+  # Skipped in container guests (vector_runtime_managed, set in tasks/main.yml):
+  # the config is deployed but there is no managed service to restart there.
+  when: vector_runtime_managed | default(false)
