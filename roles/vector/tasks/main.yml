@@ -106,16 +106,21 @@
     cache_valid_time: 3600
   become: true
 
-- name: Ensure the Vector config and data directories exist
+# Config dir is root-owned (vector only reads it); the DATA dir must be owned by
+# the vector runtime user, which writes its state and disk buffers there —
+# forcing it to root would break buffering.
+- name: Ensure the Vector config and data directories exist with correct ownership
   ansible.builtin.file:
-    path: "{{ item }}"
+    path: "{{ item.path }}"
     state: directory
-    owner: root
+    owner: "{{ item.owner }}"
     group: vector
     mode: "0750"
   loop:
-    - "{{ vector_config_dir }}"
-    - "{{ vector_data_dir }}"
+    - { path: "{{ vector_config_dir }}", owner: "root" }
+    - { path: "{{ vector_data_dir }}", owner: "vector" }
+  loop_control:
+    label: "{{ item.path }}"
   become: true
 
 # vector.yaml may carry a sink secret (token), so it is group-readable by the
