@@ -9,6 +9,20 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Compliance posture export — the fleet → MCP bridge (ADR-007).**
+  Final AI-native thread (Fleet↔MCP wiring). `scripts/export-compliance-posture.py`
+  emits the fleet's compliance posture as a deterministic, versioned JSON
+  artifact (`fleet-compliance-posture/v1`) — controls/policies, regulatory
+  mappings, implementing roles, per-role baseline/conditional status, and
+  framework tallies — derived from `docs/compliance-controls.yml` +
+  `playbooks/site-common.yml`. It gives the AI layer (the Vertex MCP gateway)
+  a stable, **read-only** contract instead of parsing Ansible, and exposes only
+  compliance metadata (no inventory/secrets) so it is safe to serve. Output is
+  sorted with no timestamp (reproducible/diffable); `validate-compliance-controls.py`
+  remains authoritative. Added `make export-compliance` and a CI smoke test
+  (must emit valid JSON). `docs/ADR-007` records the contract; the serving
+  gateway lives on Vertex (out of repo). GDPR Art 5(2), ISO 27001:2022 A.5.36.
+
 - 2026-05-31 **AI-in-CI — advisory compliance review via local inference
   (ADR-006).** Second AI-native capability. A new workflow
   (`.github/workflows/ai-compliance-review.yml`) + stdlib-only script
