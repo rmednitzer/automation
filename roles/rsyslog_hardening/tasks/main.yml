@@ -28,25 +28,61 @@
     - name: Harden rsyslog when present
       when: rsyslog_hardening_rsyslogd.stat.exists
       block:
-        - name: Deploy the rsyslog hardening drop-in
-          ansible.builtin.template:
-            src: 00-hardening.conf.j2
-            dest: /etc/rsyslog.d/00-hardening.conf
-            owner: root
-            group: root
-            mode: "0644"
-          become: true
-          notify: Restart rsyslog
+        # Deploy + validate as a unit. The drop-in must live in /etc/rsyslog.d/
+        # for `rsyslogd -N1` to check it in context, so if validation fails the
+        # rescue rolls the file back (to its previous version, or removes a
+        # newly written one) — an invalid config never persists on disk to break
+        # a later manual restart or reboot — then fails the play. The handler is
+        # not flushed on that failure, so the running daemon is never restarted
+        # onto a bad config.
+        - name: Deploy and validate the rsyslog hardening drop-in
+          block:
+            - name: Deploy the rsyslog hardening drop-in
+              ansible.builtin.template:
+                src: 00-hardening.conf.j2
+                dest: /etc/rsyslog.d/00-hardening.conf
+                owner: root
+                group: root
+                mode: "0644"
+                backup: true
+              become: true
+              register: rsyslog_hardening_dropin
+              notify: Restart rsyslog
 
-        # Validate the WHOLE config (drop-in in context) before any restart. On
-        # failure the play aborts here, so handlers never flush and the running
-        # daemon keeps its previous, good config.
-        - name: Validate the full rsyslog configuration
-          ansible.builtin.command:
-            cmd: rsyslogd -N1
-          become: true
-          changed_when: false
-          when: rsyslog_hardening_runtime_managed | bool
+            - name: Validate the full rsyslog configuration
+              ansible.builtin.command:
+                cmd: rsyslogd -N1
+              become: true
+              changed_when: false
+              when: rsyslog_hardening_runtime_managed | bool
+          rescue:
+            - name: Restore the previous drop-in after failed validation
+              ansible.builtin.copy:
+                src: "{{ rsyslog_hardening_dropin.backup_file }}"
+                dest: /etc/rsyslog.d/00-hardening.conf
+                remote_src: true
+                owner: root
+                group: root
+                mode: "0644"
+              become: true
+              when:
+                - rsyslog_hardening_dropin is changed
+                - rsyslog_hardening_dropin.backup_file is defined
+
+            - name: Remove the newly written invalid drop-in (no previous version)
+              ansible.builtin.file:
+                path: /etc/rsyslog.d/00-hardening.conf
+                state: absent
+              become: true
+              when:
+                - rsyslog_hardening_dropin is changed
+                - rsyslog_hardening_dropin.backup_file is not defined
+
+            - name: Fail after rolling back the invalid rsyslog drop-in
+              ansible.builtin.fail:
+                msg: >-
+                  The rendered rsyslog hardening drop-in failed `rsyslogd -N1`
+                  and was rolled back. Review the rsyslog_hardening_* variables.
 
         # Audit for network log reception (imtcp/imudp) — a stock host has none.
         - name: Detect rsyslog network log reception (imtcp/imudp)

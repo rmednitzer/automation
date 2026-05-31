@@ -18,8 +18,10 @@ before any other drop-in):
 
 It then:
 
-- **Validates the whole config** with `rsyslogd -N1` before any restart, so a
-  bad drop-in aborts the play *before* the running daemon is touched.
+- **Validates the whole config** with `rsyslogd -N1` before any restart. If the
+  rendered drop-in is invalid it's **rolled back** (to its previous version, or
+  removed) so it never persists on disk to break a later restart/reboot, and the
+  play fails before the running daemon is restarted.
 - **Audits for network log reception** (`imtcp`/`imudp`). A stock host has none;
   this surfaces an unintended syslog listener. Audit-only by default — set
   `rsyslog_hardening_fail_on_network_input: true` to hard-fail instead (leave it
