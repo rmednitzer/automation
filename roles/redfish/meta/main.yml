@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  role_name: redfish
+  author: automation
+  description: >-
+    Aspirational out-of-band (BMC) management via the Redfish API — read-only
+    inventory by default, hard-gated power control — driven from the control
+    host. Off until BMC endpoints are defined. See docs/ADR-005.
+  license: Apache-2.0
+  min_ansible_version: "2.18"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble      # 24.04 LTS (control/bastion host)
+        - resolute   # 26.04 LTS (kernel 7.0) — see docs/ADR-004
+  galaxy_tags:
+    - redfish
+    - bmc
+    - oob
+    - hardware
+    - management
+
+# Requires the community.general collection (redfish_info / redfish_command),
+# pinned in requirements.yml. Role-level dependencies: none.
+dependencies: []

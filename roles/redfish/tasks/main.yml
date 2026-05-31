@@ -1,0 +1,92 @@
+---
+# Out-of-band management via Redfish, from the control/bastion host to each BMC.
+# POL-001. Read-only inventory by default; power actions are hard-gated.
+# ASPIRATIONAL — inert until redfish_bmcs is populated (see docs/ADR-005).
+
+- name: Out-of-band (Redfish) management
+  when: redfish_enabled | bool
+  block:
+    - name: Assert BMC endpoints are defined when enabled
+      ansible.builtin.assert:
+        that:
+          - redfish_bmcs | length > 0
+        fail_msg: >-
+          redfish_enabled is true but redfish_bmcs is empty — define BMC
+          endpoints (see defaults/main.yml and docs/ADR-005).
+        quiet: true
+
+    - name: Validate the requested action
+      ansible.builtin.assert:
+        that:
+          - redfish_action in ['inventory', 'power']
+        fail_msg: "redfish_action must be 'inventory' or 'power'."
+        quiet: true
+
+    # --- read-only inventory (safe default) ---------------------------------
+    - name: Collect Redfish system, firmware and thermal inventory
+      community.general.redfish_info:
+        category:
+          - Systems
+          - Update
+          - Chassis
+        command:
+          - GetSystemInventory
+          - GetFirmwareInventory
+          - GetChassisThermals
+        baseurl: "{{ item.baseurl }}"
+        username: "{{ item.username }}"
+        password: "{{ item.password }}"
+        validate_certs: "{{ item.validate_certs | default(redfish_validate_certs) }}"
+        timeout: "{{ redfish_timeout }}"
+      delegate_to: localhost
+      loop: "{{ redfish_bmcs }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: redfish_inventory
+      no_log: true   # credentials + responses may carry sensitive detail
+      when: redfish_action == 'inventory'
+
+    - name: Report which BMCs were inventoried
+      ansible.builtin.debug:
+        msg: >-
+          Collected Redfish inventory from:
+          {{ redfish_bmcs | map(attribute='name') | list }}.
+      when: redfish_action == 'inventory'
+
+    # --- hard-gated power control -------------------------------------------
+    - name: Validate the power command
+      ansible.builtin.assert:
+        that:
+          - redfish_power_command in ['On', 'ForceOff', 'GracefulShutdown', 'GracefulRestart', 'ForceRestart', 'Reboot']
+        fail_msg: "redfish_power_command must be a valid Redfish power verb."
+        quiet: true
+      when: redfish_action == 'power'
+
+    - name: Refuse power actions without explicit confirmation
+      ansible.builtin.assert:
+        that:
+          - redfish_confirm_state_change | bool
+        fail_msg: >-
+          Refusing power action: set redfish_confirm_state_change=true to
+          actually change BMC power state.
+        quiet: true
+      when: redfish_action == 'power'
+
+    - name: Perform the BMC power action
+      community.general.redfish_command:
+        category: Systems
+        command: "Power{{ redfish_power_command }}"
+        baseurl: "{{ item.baseurl }}"
+        username: "{{ item.username }}"
+        password: "{{ item.password }}"
+        resource_id: "{{ item.system_id | default(omit) }}"
+        validate_certs: "{{ item.validate_certs | default(redfish_validate_certs) }}"
+        timeout: "{{ redfish_timeout }}"
+      delegate_to: localhost
+      loop: "{{ redfish_bmcs }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+      when:
+        - redfish_action == 'power'
+        - redfish_confirm_state_change | bool

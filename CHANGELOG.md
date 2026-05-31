@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **New `redfish` role + ADR-005 — aspirational out-of-band (BMC)
+  management (POL-001).** Forward-looking capability for when the fleet gains
+  enterprise hardware with BMCs (iDRAC/iLO/XCC/OpenBMC). `docs/ADR-005` records
+  the strategy: vendor-neutral Redfish over legacy IPMI, mandatory management-
+  VLAN isolation, security-first defaults, and a NIST SP 800-193 firmware
+  posture. The `redfish` role (driven from the control host via
+  `community.general.redfish_*`, run by `playbooks/redfish-oob.yml`) ships
+  **inert** — off by default, empty `redfish_bmcs`. Read-only inventory
+  (system/firmware/thermal) is the default action; **power control is
+  double-gated** (`redfish_action: power` *and* `redfish_confirm_state_change`).
+  TLS verification on, vaulted per-BMC credentials, `no_log` on
+  credential-bearing tasks. Not part of `site-common.yml` (it targets BMCs, not
+  fleet hosts). Mapped to POL-001 in `docs/compliance-controls.yml`. CRA Annex I,
+  NIS2 Art 21.2(d)(e), ISO 27001:2022 A.8.2 / A.8.9.
+
 - 2026-05-31 **New `rsyslog_hardening` role — local rsyslog hardening
   (CTL-003).** Completes the logging capability ("Vector ships, rsyslog local").
   Deploys `/etc/rsyslog.d/00-hardening.conf`: restrictive create-modes
