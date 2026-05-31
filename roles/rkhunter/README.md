@@ -1,6 +1,6 @@
 # `rkhunter` role
 
-Rootkit detection via rkhunter for Ubuntu 24.04 LTS.
+Rootkit detection via rkhunter for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 

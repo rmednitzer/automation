@@ -9,6 +9,19 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Docs alignment — bring the Markdown in step with the code
+  (no behaviour change).** The repo grew to 22 roles / 4 playbooks while the
+  docs still described the original 10-role / 2-playbook baseline. Refreshed
+  `CLAUDE.md` (the current-state baseline is now the accurate 19 site-common
+  roles incl. opt-in `vector`/`wazuh_agent`, plus `sre_toolchain`/`ollama`/
+  `redfish` in their own playbooks; the layout and the "molecule placeholder"
+  note are corrected — real `molecule/default` scenarios exist). Expanded the
+  `README.md` Roles table from 11 to all 22 roles (in site-common order) and
+  added the missing ADR-005/006/007 rows. Fixed seven role READMEs whose
+  tagline still said "Ubuntu 24.04 LTS" to "24.04 LTS and 26.04 LTS (ADR-004)",
+  matching the dual-support already declared in every role's `meta`. No control
+  mappings, role logic, or playbooks changed.
+
 - 2026-05-31 **Regulatory framework coverage — map CRA Annex I and NISG 2026
   (audit remediation).** `docs/compliance-controls.yml` declared five
   frameworks in scope (NIS2, NISG 2026, CRA Annex I, GDPR, ISO 27001) but every

@@ -1,6 +1,6 @@
 # `ntp` role
 
-Time synchronisation via `chrony` for Ubuntu 24.04 LTS.
+Time synchronisation via `chrony` for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 
