@@ -13,10 +13,13 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
   CTL-003).** Adds [Vector](https://vector.dev) (by Datadog) as the modern
   complement to the rsyslog-based `log_forwarding`: reads journald and ships to
   a configurable SIEM sink. Adds the Vector APT repo via a `signed-by` Datadog
-  keyring (armored key fetched, fingerprint verified before dearmor when
-  `vector_apt_key_fingerprint` is pinned, refreshed on rotation); deploys
-  `/etc/vector/vector.yaml` from `vector_sources`/`_transforms`/`_sinks`,
-  **validated with `vector validate`** before placement. **Off by default**
+  keyring — imports the documented Datadog key **set** (`vector_apt_key_urls`:
+  current + rollover, so key rotation doesn't break apt), built in a staging
+  copy whose fingerprints are checked against the optional allow-list
+  (`vector_apt_key_fingerprints`) and installed atomically only when changed;
+  deploys `/etc/vector/vector.yaml` from `vector_sources`/`_transforms`/`_sinks`,
+  **validated with `vector validate`** before placement (`diff: false` so a sink
+  secret never reaches `--diff`/CI logs). **Off by default**
   (`vector_enabled: false`); `site-common.yml` runs it only when enabled, and
   the role asserts `vector_sinks` is set (no safe default destination) — sink
   secrets are referenced via vault vars, nothing committed (public-repo-safe).

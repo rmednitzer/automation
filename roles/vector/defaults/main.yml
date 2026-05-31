@@ -23,18 +23,25 @@ vector_enabled: false
 # --- Package / supply chain ---------------------------------------------------
 # Pin a version (e.g. "0.40.0-1"); empty = latest in the repo.
 vector_version: ""
-# Vector APT repo + Datadog signing key (signed-by keyring is the security
-# anchor). See https://vector.dev/docs/setup/installation/package-managers/apt/
-vector_apt_key_url: "https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public"
+# Vector APT repo + Datadog signing keys (the signed-by keyring is the security
+# anchor). See https://vector.dev/docs/setup/installation/package-managers/apt/.
+# Import the documented Datadog key SET (current + rollover/legacy), not just
+# the current key, so repo metadata signed by any active key during a key
+# rotation still verifies (a single-key keyring fails with NO_PUBKEY otherwise).
+vector_apt_key_urls:
+  - "https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public"
+  - "https://keys.datadoghq.com/DATADOG_APT_KEY_F14F620E.public"
+  - "https://keys.datadoghq.com/DATADOG_APT_KEY_C0962C7D.public"
 vector_apt_keyring: "/usr/share/keyrings/datadog-archive-keyring.gpg"
 vector_apt_repo_uri: "https://apt.vector.dev/"
 vector_apt_repo_suite: "stable"
 vector_apt_repo_component: "vector-0"
-# OPTIONAL supply-chain hardening: pin the Datadog APT key's full fingerprint
-# (hex, no spaces). Empty by default (verified only when set). Obtain it
-# out-of-band, e.g.:
-#   curl -s https://keys.datadoghq.com/DATADOG_APT_KEY_CURRENT.public | gpg --show-keys --with-colons | awk -F: '/^fpr:/{print $10; exit}'
-vector_apt_key_fingerprint: ""
+# OPTIONAL supply-chain hardening: pin the allowed key fingerprints (hex, no
+# spaces). Empty by default (no pin). When set, the dearmored keyring must
+# contain ONLY these fingerprints, else the run fails before apt trusts it.
+# Obtain them out-of-band, e.g. per key:
+#   curl -s <key-url> | gpg --show-keys --with-colons | awk -F: '/^fpr:/{print $10}'
+vector_apt_key_fingerprints: []
 
 # --- Vector configuration -----------------------------------------------------
 vector_config_dir: /etc/vector
