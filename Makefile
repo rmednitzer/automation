@@ -3,7 +3,7 @@
 
 SHELL := /usr/bin/env bash
 
-.PHONY: help install lint syntax-check validate-compliance check molecule molecule-sre molecule-deps clean
+.PHONY: help install lint syntax-check validate-compliance export-compliance check molecule molecule-sre molecule-deps clean
 
 # Roles that ship a molecule/default scenario. Each scenario tests both
 # Ubuntu 24.04 (noble) and 26.04 (resolute) — see ADR-004. Requires Docker.
