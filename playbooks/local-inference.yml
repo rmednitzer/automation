@@ -1,0 +1,20 @@
+---
+# Provision the local LLM inference runtime (Ollama) on dedicated inference
+# hosts. AI-native capability #7. NOT part of the fleet baseline — add hosts to
+# the `inference_hosts` inventory group and set ollama_version/ollama_checksum
+# (and optionally ollama_models) in that group's group_vars.
+#
+#   ansible-playbook -i inventories/<env>/hosts playbooks/local-inference.yml
+- name: Provision local LLM inference (Ollama)
+  hosts: inference_hosts
+  become: true
+  # Running this playbook is the intent to provision inference; the role still
+  # asserts a pinned version + checksum.
+  vars:
+    ollama_enabled: true
+  roles:
+    - role: ollama
+      tags:
+        - ollama
+        - inference
+        - ai

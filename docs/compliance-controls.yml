@@ -177,6 +177,7 @@ policies:
       - auditd
       - systemd_hardening
       - kernel_lockdown
+      - ollama
 
   POL-005:
     title: "Change management policy"

@@ -1,0 +1,41 @@
+# {{ ansible_managed }}
+# Ollama local inference server (roles/ollama). POL-004.
+[Unit]
+Description=Ollama local inference server
+Documentation=https://docs.ollama.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+ExecStart={{ ollama_install_prefix }}/bin/ollama serve
+User={{ ollama_user }}
+Group={{ ollama_group }}
+Restart=always
+RestartSec=3
+# Localhost-bound by default; the API is unauthenticated (see role README).
+Environment="OLLAMA_HOST={{ ollama_host }}:{{ ollama_port }}"
+Environment="OLLAMA_MODELS={{ ollama_data_dir }}/models"
+{% for key, value in (ollama_environment | dictsort) %}
+Environment="{{ key }}={{ value }}"
+{% endfor %}
+
+# Hardening — moderate, because GPU access needs device nodes (so no
+# PrivateDevices). Sandboxing complements the systemd_hardening role.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+ReadWritePaths={{ ollama_data_dir }}
+{% if ollama_gpu_groups | length > 0 %}
+SupplementaryGroups={{ ollama_gpu_groups | join(' ') }}
+{% endif %}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+---
+# ollama role handlers
+
+- name: Restart ollama
+  ansible.builtin.systemd_service:
+    name: ollama
+    state: restarted
+    daemon_reload: true
+  become: true
+  # Skipped in container guests (ollama_runtime_managed, set in tasks/main.yml).
+  when: ollama_runtime_managed | default(false)

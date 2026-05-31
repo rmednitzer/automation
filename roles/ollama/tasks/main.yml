@@ -1,0 +1,158 @@
+---
+# Local LLM inference runtime (Ollama): pinned + checksum-verified install, a
+# hardened localhost-bound service, optional model pulls. POL-004. Off until
+# enabled; targets inference hosts (see playbooks/local-inference.yml).
+
+- name: Provision the Ollama inference runtime
+  when: ollama_enabled | bool
+  block:
+    - name: Require a pinned version and checksum (supply chain)
+      ansible.builtin.assert:
+        that:
+          - ollama_version | length > 0
+          - ollama_checksum | length > 0
+        fail_msg: >-
+          ollama_version and ollama_checksum must be set when ollama_enabled is
+          true (pin the release and its published SHA256 — ADR-002).
+        quiet: true
+
+    - name: Determine whether to manage the Ollama runtime
+      ansible.builtin.set_fact:
+        ollama_runtime_managed: >-
+          {{ ollama_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Resolve the release architecture
+      ansible.builtin.set_fact:
+        ollama_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture | default('x86_64')] | default('') }}"
+
+    - name: Fail on an unsupported architecture
+      ansible.builtin.assert:
+        that:
+          - ollama_arch | length > 0
+        fail_msg: "Unsupported architecture '{{ ansible_architecture | default('?') }}' (Ollama ships amd64/arm64)."
+        quiet: true
+
+    - name: Create the ollama group
+      ansible.builtin.group:
+        name: "{{ ollama_group }}"
+        system: true
+      become: true
+
+    - name: Create the ollama service user
+      ansible.builtin.user:
+        name: "{{ ollama_user }}"
+        group: "{{ ollama_group }}"
+        home: "{{ ollama_data_dir }}"
+        shell: /usr/sbin/nologin
+        system: true
+        create_home: false
+      become: true
+
+    - name: Ensure the ollama data directory exists
+      ansible.builtin.file:
+        path: "{{ ollama_data_dir }}"
+        state: directory
+        owner: "{{ ollama_user }}"
+        group: "{{ ollama_group }}"
+        mode: "0750"
+      become: true
+
+    - name: Check for an NVIDIA GPU (non-failing; CPU fallback otherwise)
+      ansible.builtin.command:
+        cmd: nvidia-smi -L
+      register: ollama_nvidia
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Note when no NVIDIA GPU is detected
+      ansible.builtin.debug:
+        msg: >-
+          nvidia-smi not available / no GPU detected — Ollama will run on CPU.
+          Install the NVIDIA driver on this host for GPU acceleration.
+      when: ollama_nvidia.rc | default(1) != 0
+
+    # --- pinned, checksum-verified install ----------------------------------
+    - name: Check the installed Ollama version
+      ansible.builtin.command:
+        cmd: "{{ ollama_install_prefix }}/bin/ollama --version"
+      register: ollama_installed
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Install the pinned Ollama release
+      when: ollama_version not in (ollama_installed.stdout | default(''))
+      become: true
+      block:
+        - name: Download the pinned Ollama release (checksum-verified)
+          ansible.builtin.get_url:
+            url: "{{ ollama_download_baseurl }}/v{{ ollama_version }}/ollama-linux-{{ ollama_arch }}.tgz"
+            dest: "/tmp/ollama-{{ ollama_version }}-{{ ollama_arch }}.tgz"
+            checksum: "{{ ollama_checksum }}"
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Extract Ollama into the install prefix
+          ansible.builtin.unarchive:
+            src: "/tmp/ollama-{{ ollama_version }}-{{ ollama_arch }}.tgz"
+            dest: "{{ ollama_install_prefix }}"
+            remote_src: true
+            owner: root
+            group: root
+          notify: Restart ollama
+
+        - name: Remove the downloaded archive
+          ansible.builtin.file:
+            path: "/tmp/ollama-{{ ollama_version }}-{{ ollama_arch }}.tgz"
+            state: absent
+
+    # --- hardened service ----------------------------------------------------
+    - name: Deploy the Ollama systemd unit
+      ansible.builtin.template:
+        src: ollama.service.j2
+        dest: /etc/systemd/system/ollama.service
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      notify: Restart ollama
+
+    - name: Enable and start Ollama
+      ansible.builtin.systemd_service:
+        name: ollama
+        enabled: true
+        state: started
+        daemon_reload: true
+      become: true
+      when: ollama_runtime_managed | bool
+
+    # --- optional model pulls ------------------------------------------------
+    - name: List already-pulled models
+      ansible.builtin.command:
+        cmd: "{{ ollama_install_prefix }}/bin/ollama list"
+      environment:
+        OLLAMA_HOST: "{{ ollama_host }}:{{ ollama_port }}"
+      register: ollama_model_list
+      changed_when: false
+      become: true
+      when:
+        - ollama_runtime_managed | bool
+        - ollama_models | length > 0
+
+    # Only runs for models not already present (the when gate), so each run is a
+    # genuine pull → changed.
+    - name: Pull configured models
+      ansible.builtin.command:
+        cmd: "{{ ollama_install_prefix }}/bin/ollama pull {{ item }}"
+      environment:
+        OLLAMA_HOST: "{{ ollama_host }}:{{ ollama_port }}"
+      loop: "{{ ollama_models }}"
+      changed_when: true
+      become: true
+      when:
+        - ollama_runtime_managed | bool
+        - item not in (ollama_model_list.stdout | default(''))
