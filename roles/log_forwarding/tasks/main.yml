@@ -2,6 +2,16 @@
 # Log forwarding role for Ubuntu 24.04/26.04 LTS
 # CTL-003, NIS2 Art 21.2(a), GDPR Art 5(2)
 
+# Container GUESTS share the host audit subsystem and can't restart auditd, so
+# the audisp reload handler is gated on this (same guest check as the auditd
+# role's auditd_runtime_managed). The audisp config files are still deployed.
+- name: Determine whether to manage the auditd runtime (log forwarding)
+  ansible.builtin.set_fact:
+    log_forwarding_runtime_managed: >-
+      {{ not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+              and (ansible_virtualization_role | default('host')) == 'guest') }}
+  when: log_forwarding_enabled
+
 - name: Ensure rsyslog is installed
   ansible.builtin.apt:
     name: rsyslog
@@ -42,7 +52,7 @@
     group: root
     mode: "0640"
   become: true
-  notify: Reload auditd configuration
+  notify: Reload auditd for log forwarding
   when:
     - log_forwarding_enabled
     - log_forwarding_audit
@@ -56,7 +66,7 @@
     group: root
     mode: "0640"
   become: true
-  notify: Reload auditd configuration
+  notify: Reload auditd for log forwarding
   when:
     - log_forwarding_enabled
     - log_forwarding_audit

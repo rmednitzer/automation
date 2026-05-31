@@ -9,6 +9,21 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Audit remediation — 26.04 deployability + auditd handler
+  collision (correctness).** Two HIGH-severity fixes from the multi-repo audit.
+  (1) `playbooks/site-common.yml` and `playbooks/sre-toolchain.yml` asserted
+  `ansible_distribution_version == "24.04"` and failed closed on 26.04 — making
+  the repo's advertised 24.04/26.04 dual-support (ADR-004, every role's
+  `meta`, the molecule matrix) **undeployable** on 26.04. The asserts now accept
+  `["24.04", "26.04"]`. (2) `roles/log_forwarding` and `roles/auditd` both
+  defined a handler literally named `Reload auditd configuration`; handler names
+  are play-global, so `log_forwarding`'s (loaded later, **ungated**) shadowed
+  `auditd`'s container-guest-gated handler — running an unconditional
+  `service auditd restart` on a container guest and defeating auditd's
+  container-safety. `log_forwarding`'s handler is renamed to `Reload auditd for
+  log forwarding` and gated on a new `log_forwarding_runtime_managed` guest
+  check. No control mappings change (CTL-003 unaffected).
+
 - 2026-05-31 **Compliance posture export — the fleet → MCP bridge (ADR-007).**
   Final AI-native thread (Fleet↔MCP wiring). `scripts/export-compliance-posture.py`
   emits the fleet's compliance posture as a deterministic, versioned JSON
