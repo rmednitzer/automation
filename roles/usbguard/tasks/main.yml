@@ -1,0 +1,277 @@
+---
+# USBGuard: USB device authorization (default-deny). Audit the USB attack
+# surface and (opt-in) enable the blocking daemon. POL-001.
+
+- name: Configure USBGuard
+  when: usbguard_enabled | bool
+  block:
+    # USB authorization is a host-hardware property: a container GUEST has no
+    # USB bus of its own and the daemon needs host /sys/bus/usb + uevent, so it
+    # skips entirely. A container/LXC *host* is managed normally.
+    - name: Determine whether to manage the USBGuard runtime
+      ansible.builtin.set_fact:
+        usbguard_runtime_managed: >-
+          {{ usbguard_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    # InsertedDevicePolicy accepts only block/reject/apply-policy (not allow or
+    # keep); present accepts allow/block/reject/keep/apply-policy; implicit
+    # accepts allow/block/reject. Reject values the daemon would refuse.
+    - name: Validate the USBGuard policy targets
+      ansible.builtin.assert:
+        that:
+          - usbguard_implicit_policy_target in ['allow', 'block', 'reject']
+          - usbguard_present_device_policy in ['allow', 'block', 'reject', 'keep', 'apply-policy']
+          - usbguard_inserted_device_policy in ['block', 'reject', 'apply-policy']
+        fail_msg: >-
+          Invalid USBGuard policy target (implicit={{ usbguard_implicit_policy_target }},
+          present={{ usbguard_present_device_policy }},
+          inserted={{ usbguard_inserted_device_policy }}).
+        quiet: true
+
+    - name: Gather installed package facts
+      ansible.builtin.package_facts:
+        manager: apt
+      when: usbguard_runtime_managed | bool
+
+    # The Debian/Ubuntu usbguard package auto-enables and starts the daemon on
+    # install (dh_installsystemd). Mask the unit BEFORE the first install — in
+    # BOTH modes — so the package can never bring the daemon up under its
+    # default policy (plugdev IPC ACL, apply-policy on present devices). Gated
+    # on "not yet installed" so steady-state enforcing hosts don't churn; the
+    # enforce path unmasks it explicitly once our policy is in place.
+    - name: Mask usbguard before its first install (suppress package auto-start)
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: true
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - "'usbguard' not in ansible_facts.packages"
+
+    - name: Install USBGuard
+      ansible.builtin.apt:
+        name: usbguard
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+      when: usbguard_runtime_managed | bool
+
+    # Record that THIS role installed usbguard (the package was absent before
+    # this run). package_facts was gathered pre-install, so this fires only on
+    # the installing run. It marks rules.conf as a package/role artifact (not
+    # operator-curated), so first enforce regenerates rather than adopts it.
+    - name: Record that this role installed USBGuard
+      ansible.builtin.copy:
+        content: ""
+        dest: "{{ usbguard_install_marker }}"
+        force: false
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - "'usbguard' not in ansible_facts.packages"
+
+    # --- Audit (read-only) ----------------------------------------------------
+    # generate-policy reads sysfs (no daemon needed): one "allow" line per
+    # currently-connected device, so the count is the present USB attack surface.
+    - name: Count currently-connected USB devices
+      ansible.builtin.shell:
+        cmd: "set -o pipefail; usbguard generate-policy | grep -c '^allow' || true"
+        executable: /bin/bash
+      register: usbguard_device_count
+      changed_when: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_audit | bool
+
+    - name: Report the USBGuard posture (with -v)
+      ansible.builtin.debug:
+        msg: >-
+          USBGuard: enforcing={{ usbguard_enforce | bool }},
+          {{ usbguard_device_count.stdout | default('?') | trim }} USB device(s) currently connected.
+        verbosity: 1
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_audit | bool
+
+    # --- Audit-only: daemon must be OFF --------------------------------------
+    # Masking only changes the unit file; an already-running daemon (pre-existing
+    # install, or enforcement just turned off) keeps enforcing. Stop it, then
+    # mask so it cannot restart.
+    - name: Stop the USBGuard daemon when not enforcing
+      ansible.builtin.systemd_service:
+        name: usbguard
+        state: stopped
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - not (usbguard_enforce | bool)
+
+    - name: Mask the USBGuard daemon when not enforcing
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: true
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - not (usbguard_enforce | bool)
+
+    # --- Opt-in enforcement ---------------------------------------------------
+    - name: Unmask the USBGuard daemon for enforcement
+      ansible.builtin.systemd_service:
+        name: usbguard
+        masked: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    # Decide between seeding fresh rules and adopting an existing operator
+    # policy. Stat both rules.conf and the role install marker: a rule set is
+    # "operator-curated" (adopt as-is) only when it is non-empty AND the role
+    # did NOT install usbguard. If the role installed usbguard, rules.conf is a
+    # package/role artifact and is regenerated from the live devices at first
+    # enforce — even if the package left it non-empty during an audit-only run.
+    - name: Stat the existing USBGuard rule set
+      ansible.builtin.stat:
+        path: "{{ usbguard_rules_file }}"
+      register: usbguard_rules_stat
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    - name: Stat the role install marker
+      ansible.builtin.stat:
+        path: "{{ usbguard_install_marker }}"
+      register: usbguard_install_marker_stat
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    # Seed from the devices connected RIGHT NOW (incl. the console keyboard/
+    # mouse) on first enforce when the rules are NOT an operator policy — i.e.
+    # the role installed usbguard, or rules.conf is absent/empty. Keyed on the
+    # role sentinel so it is one-time; the rule set is operator-managed after.
+    - name: Seed the USBGuard rule set from currently-connected devices (first enforce)
+      ansible.builtin.shell:
+        cmd: "usbguard generate-policy > {{ usbguard_rules_file }} && touch {{ usbguard_bootstrap_sentinel }}"
+        creates: "{{ usbguard_bootstrap_sentinel }}"
+      become: true
+      changed_when: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+        - (usbguard_install_marker_stat.stat.exists | default(false))
+          or not (usbguard_rules_stat.stat.exists | default(false))
+          or (usbguard_rules_stat.stat.size | default(0)) == 0
+
+    # Adopt a pre-existing operator policy as-is (role did NOT install usbguard
+    # and rules.conf is non-empty): just mark the sentinel, never overwrite.
+    # force:false keeps it idempotent and never truncates the existing file.
+    - name: Adopt an existing operator USBGuard rule set without overwriting it (first enforce)
+      ansible.builtin.copy:
+        content: ""
+        dest: "{{ usbguard_bootstrap_sentinel }}"
+        force: false
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+        - not (usbguard_install_marker_stat.stat.exists | default(false))
+        - usbguard_rules_stat.stat.exists | default(false)
+        - (usbguard_rules_stat.stat.size | default(0)) > 0
+
+    - name: Secure the USBGuard rule set
+      ansible.builtin.file:
+        path: "{{ usbguard_rules_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+
+    # The package postinst runs `usbguard add-user -g plugdev`, creating a GROUP
+    # IPC ACL. USBGuard names group ACL files with a leading colon, so the file
+    # is IPCAccessControl.d/:plugdev (we also clear the non-colon name for
+    # safety). It grants the plugdev group device-modification rights over the
+    # IPC bus, overriding IPCAllowedGroups=root — remove it so authorising a
+    # blocked device is genuinely root-only.
+    - name: Remove the package-created plugdev IPC ACLs (keep IPC root-only)
+      ansible.builtin.file:
+        path: "/etc/usbguard/IPCAccessControl.d/{{ item }}"
+        state: absent
+      become: true
+      loop:
+        - ":plugdev"
+        - "plugdev"
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+      notify: Restart usbguard
+
+    # The package also ships polkit grants (org.usbguard1) that let active
+    # plugdev users call appendRule/applyDevicePolicy over the usbguard-dbus
+    # D-Bus service without authentication. That service is off by default;
+    # mask it so the D-Bus/polkit path cannot be brought up, keeping device
+    # authorisation root-only (set usbguard_disable_dbus=false to allow it).
+    - name: Mask the usbguard-dbus service (close the D-Bus/polkit path)
+      ansible.builtin.systemd_service:
+        name: usbguard-dbus
+        masked: true
+        state: stopped
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+        - usbguard_disable_dbus | bool
+
+    # Symmetric path: if an operator later sets usbguard_disable_dbus=false to
+    # allow the D-Bus interface (e.g. a desktop applet), undo a prior mask.
+    - name: Unmask the usbguard-dbus service when the D-Bus interface is allowed
+      ansible.builtin.systemd_service:
+        name: usbguard-dbus
+        masked: false
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+        - not (usbguard_disable_dbus | bool)
+
+    - name: Deploy the USBGuard daemon configuration
+      ansible.builtin.template:
+        src: usbguard-daemon.conf.j2
+        dest: "{{ usbguard_daemon_conf }}"
+        owner: root
+        group: root
+        mode: "0600"
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool
+      notify: Restart usbguard
+
+    # Start under OUR config (rules + daemon.conf written above, plugdev ACL
+    # removed). Because the unit was masked across the install, this is the
+    # first time the daemon comes up, so it never runs under package defaults.
+    - name: Enable and start the USBGuard daemon
+      ansible.builtin.systemd_service:
+        name: usbguard
+        enabled: true
+        state: started
+      become: true
+      when:
+        - usbguard_runtime_managed | bool
+        - usbguard_enforce | bool

@@ -73,6 +73,15 @@
         - hardening
         - security
         - compliance
+    # USB device authorization (USBGuard, default-deny). Audit-only until
+    # usbguard_enforce is set; even when enforcing, already-connected devices
+    # are kept (no console lock-out) and only new insertions are filtered.
+    - role: usbguard
+      tags:
+        - usbguard
+        - hardening
+        - security
+        - compliance
     - role: users
       tags:
         - users

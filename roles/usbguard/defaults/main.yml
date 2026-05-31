@@ -1,0 +1,79 @@
+---
+# USBGuard (USB device authorization) role defaults.
+#
+# Compliance references:
+#   - POL-001 — access control policy: USBGuard implements a default-deny
+#     posture for USB devices — only allow-listed devices may attach, blocking
+#     BadUSB / rogue-HID / unauthorised mass-storage. That is the same
+#     default-deny, least-privilege access control POL-001 enforces for users
+#     (SSH/sudo), applied to the physical USB device boundary.
+#   - CRA (EU 2024/2847) Annex I Part I — minimise attack surface (physical
+#     device ingress).
+#   - NIS2 Art 21.2(e) — security in network and information systems.
+#   - GDPR Art 5(1)(f) — integrity and confidentiality (block USB exfiltration
+#     / malicious device injection); Art 25 — by design.
+#   - ISO 27001:2022 A.8.3 — information access restriction; A.7.10 — storage
+#     media.
+#
+# Targets Ubuntu 24.04 / 26.04 LTS. See docs/ADR-004.
+
+# Master switch. Safe-by-default: installs USBGuard and AUDITS the USB attack
+# surface, but does NOT activate the blocking daemon unless usbguard_enforce is
+# set — enforcing without care can lock out a console keyboard/mouse.
+usbguard_enabled: true
+
+# Manage the runtime. Auto-off in container GUESTS: USB authorization is a
+# host-hardware property (the daemon needs /sys/bus/usb + uevent on the host),
+# so a guest skips entirely — same ansible_virtualization_role == 'guest' check
+# as the auditd / kernel_lockdown roles.
+usbguard_manage_runtime: true
+
+# OPT-IN ENFORCEMENT. false = install + audit only (the daemon is NOT enabled);
+# true = generate an allow-list from currently-connected devices, deploy the
+# daemon policy, and enable the blocking daemon. Default false because blocking
+# is disruptive on physical hosts; turn it on per environment after validating
+# in staging (and ideally with out-of-band/console access the first time).
+usbguard_enforce: false
+
+# --- Daemon policy (only applied when usbguard_enforce) -----------------------
+# What happens to a device that matches NO rule: block (detach, keep rule),
+# reject (detach + remove), or allow. block is the default-deny posture.
+usbguard_implicit_policy_target: "block"
+# What happens to devices ALREADY CONNECTED when the daemon starts. "keep" =
+# leave them in their current (authorised) state — the safe default, so the
+# console keyboard/mouse and existing storage are never deauthorised. Use
+# "apply-policy" only once your rule set is known-good.
+usbguard_present_device_policy: "keep"
+# What happens to devices INSERTED while the daemon runs. "apply-policy"
+# evaluates them against the rules (the actual protection: new USB is blocked
+# unless allow-listed).
+usbguard_inserted_device_policy: "apply-policy"
+
+usbguard_rules_file: /etc/usbguard/rules.conf
+# Rule *folder* for drop-in allow/block snippets. The Ubuntu package enables
+# RuleFolder=/etc/usbguard/rules.d/ by default; keep it set so the role's
+# daemon config does not silently drop operator rules.d/ policy on adoption.
+# Empty = omit RuleFolder (rules.conf only).
+usbguard_rules_folder: /etc/usbguard/rules.d/
+usbguard_daemon_conf: /etc/usbguard/usbguard-daemon.conf
+# Mask usbguard-dbus.service when enforcing. The package ships polkit grants
+# that let active plugdev-group users authorise devices over the usbguard-dbus
+# D-Bus interface without authentication; that service is off by default, and
+# masking it keeps device authorisation genuinely root-only. Set false to allow
+# the D-Bus interface (e.g. a desktop USBGuard applet).
+usbguard_disable_dbus: true
+# Role-owned marker that the allow-list has been seeded by THIS role on first
+# enforce. We key the one-time bootstrap on this, not on rules.conf, because the
+# package's postinst creates rules.conf at install time — keying on that would
+# skip the seed and start the daemon with a stale allow-list.
+usbguard_bootstrap_sentinel: /etc/usbguard/.ansible-rules-bootstrapped
+# Role-owned marker recording that THIS role installed the usbguard package
+# (it was absent beforehand). When the role installed it, any rules.conf is a
+# package/role artifact — first enforce regenerates from the live devices. When
+# usbguard pre-existed the role, this marker is absent and a non-empty rules.conf
+# is treated as an operator-curated policy and adopted as-is.
+usbguard_install_marker: /etc/usbguard/.ansible-installed
+
+# Report the count of currently-connected USB devices (read-only, via
+# `usbguard generate-policy`, which reads sysfs and needs no daemon).
+usbguard_audit: true
