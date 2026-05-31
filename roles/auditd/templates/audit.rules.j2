@@ -123,6 +123,7 @@
 -w /etc/netplan/ -p wa -k network_config
 -w /etc/ufw/ -p wa -k firewall_config
 -w /etc/nftables.conf -p wa -k firewall_config
+-w /etc/nftables.d/ -p wa -k firewall_config
 
 # Cryptographic material changes (POL-003 — cryptography policy)
 -w /etc/ssl/ -p wa -k crypto_config

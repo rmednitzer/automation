@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Load the fw_egress nftables ruleset (roles/nftables_egress)
+Documentation=man:nft(8)
+# network-pre.target is the systemd hook for firewall setup: order BEFORE it so
+# the egress policy is in place before interfaces/services generate outbound
+# traffic. ufw hooks the same target with its own (separate) table, so no
+# ordering between the two is needed.
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f {{ nftables_egress_ruleset_file }}
+ExecReload=/usr/sbin/nft -f {{ nftables_egress_ruleset_file }}
+# Tolerate the table already being gone on stop (leading '-').
+ExecStop=-/usr/sbin/nft delete table inet fw_egress
+
+[Install]
+WantedBy=multi-user.target

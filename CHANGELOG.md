@@ -9,6 +9,22 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-30 **New `nftables_egress` role — default-deny egress filtering
+  (POL-001).** Final defense-in-depth piece. Adds an allow-listed OUTBOUND
+  policy with nftables in a **separate `inet fw_egress` table** that composes
+  with ufw (ufw untouched), loaded by an `nftables-egress.service` unit.
+  Off-by-default risk ladder (`nftables_egress_mode`): `off` deploys nothing;
+  `observe` logs non-allow-listed egress without dropping; `enforce` drops it.
+  **Lock-out-safe** — the chain always accepts loop-back and
+  established/related, so enforce never breaks the inbound SSH/Ansible session;
+  the ruleset is `nft -c` syntax-checked before it is applied. Allow-list
+  defaults (DNS/NTP/HTTP/HTTPS/DHCP/ICMP) keep core host functions working under
+  enforce; `nftables_egress_allow_extra` takes destination-specific rules.
+  Container-guest aware (`nftables_egress_runtime_managed`). Added to
+  `site-common.yml` after `ufw` and mapped to POL-001 in
+  `docs/compliance-controls.yml`. CRA Annex I Part I, NIS2 Art 21.2(e),
+  GDPR Art 5(1)(f), ISO 27001:2022 A.8.20 / A.8.21.
+
 - 2026-05-30 **New `usbguard` role — USB device authorization (POL-001).**
   Defense-in-depth part 3. Installs USBGuard and **audits** the USB attack
   surface (count of connected devices via `usbguard generate-policy`,

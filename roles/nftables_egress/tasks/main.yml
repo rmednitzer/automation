@@ -1,0 +1,136 @@
+---
+# nftables egress filtering: default-deny OUTBOUND with an allow-list, in a
+# separate table that composes with ufw. POL-001. Lock-out-safe (loop-back and
+# established/related always accepted); off by default.
+
+- name: Configure nftables egress filtering
+  when: nftables_egress_enabled | bool
+  block:
+    # Egress filtering is a host network property: a container GUEST shares /
+    # namespaces the host's netfilter, so it skips entirely. A container/LXC
+    # *host* is managed normally.
+    - name: Determine whether to manage the nftables egress runtime
+      ansible.builtin.set_fact:
+        nftables_egress_runtime_managed: >-
+          {{ nftables_egress_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Validate the egress mode
+      ansible.builtin.assert:
+        that:
+          - nftables_egress_mode in ['off', 'observe', 'enforce']
+        fail_msg: "nftables_egress_mode must be one of off | observe | enforce (got '{{ nftables_egress_mode }}')."
+        quiet: true
+
+    - name: Ensure nftables is installed
+      ansible.builtin.apt:
+        name: nftables
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+      become: true
+      when: nftables_egress_runtime_managed | bool
+
+    # --- mode observe/enforce: deploy the egress table -----------------------
+    - name: Ensure the nftables drop-in directory exists
+      ansible.builtin.file:
+        path: "{{ nftables_egress_ruleset_file | dirname }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode != 'off'
+
+    # validate: `nft -c -f` syntax-checks the rendered ruleset BEFORE it is
+    # placed, so a malformed table can never be written or loaded.
+    - name: Deploy the egress ruleset
+      ansible.builtin.template:
+        src: nftables-egress.nft.j2
+        dest: "{{ nftables_egress_ruleset_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+        validate: "nft -c -f %s"
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode != 'off'
+      notify: Reload nftables egress ruleset
+
+    - name: Deploy the egress loader service
+      ansible.builtin.template:
+        src: nftables-egress.service.j2
+        dest: "/etc/systemd/system/{{ nftables_egress_service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode != 'off'
+
+    # daemon_reload makes systemd read a newly deployed/changed unit before we
+    # enable+start it (idempotent: it does not by itself mark the task changed).
+    - name: Enable and start the egress loader service
+      ansible.builtin.systemd_service:
+        name: "{{ nftables_egress_service_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode != 'off'
+
+    # --- mode off: tear down (idempotent) ------------------------------------
+    - name: Disable the egress loader service when mode is off
+      ansible.builtin.systemd_service:
+        name: "{{ nftables_egress_service_name }}"
+        enabled: false
+        state: stopped
+      become: true
+      failed_when: false   # the unit may never have been installed
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode == 'off'
+
+    - name: Remove the egress unit and ruleset when mode is off
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "/etc/systemd/system/{{ nftables_egress_service_name }}.service"
+        - "{{ nftables_egress_ruleset_file }}"
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode == 'off'
+      notify: Reload systemd daemon for egress
+
+    # The table can still be loaded in the running kernel; remove it so mode
+    # off takes effect immediately, not just on next boot. Check first so the
+    # delete is idempotent (nft errors on a missing table).
+    - name: Check whether the egress table is loaded (mode off)
+      ansible.builtin.command:
+        cmd: nft list table inet fw_egress
+      register: nftables_egress_loaded
+      changed_when: false
+      failed_when: false
+      become: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode == 'off'
+
+    - name: Remove the egress table from the running ruleset (mode off)
+      ansible.builtin.command:
+        cmd: nft delete table inet fw_egress
+      become: true
+      changed_when: true
+      when:
+        - nftables_egress_runtime_managed | bool
+        - nftables_egress_mode == 'off'
+        - nftables_egress_loaded.rc | default(1) == 0

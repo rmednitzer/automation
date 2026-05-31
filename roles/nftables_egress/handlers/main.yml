@@ -1,0 +1,21 @@
+---
+# nftables_egress handlers. Skipped in container guests
+# (nftables_egress_runtime_managed, set in tasks/main.yml).
+
+# Re-apply the egress ruleset via the loader unit's ExecReload (nft -f) so a
+# changed ruleset takes effect now. tasks/main.yml enables+starts (and
+# daemon-reloads) the unit before handlers flush, so it is active and current
+# here.
+- name: Reload nftables egress ruleset
+  ansible.builtin.systemd_service:
+    name: "{{ nftables_egress_service_name }}"
+    state: reloaded
+  become: true
+  when: nftables_egress_runtime_managed | default(false)
+
+# Used on teardown (mode off) after the unit file is removed.
+- name: Reload systemd daemon for egress
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  become: true
+  when: nftables_egress_runtime_managed | default(false)

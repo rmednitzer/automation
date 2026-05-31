@@ -1,0 +1,41 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# Egress filter — roles/nftables_egress (POL-001). Mode: {{ nftables_egress_mode }}.
+# A SEPARATE `inet fw_egress` table so it composes with ufw's tables (ufw is not
+# touched). Idempotent single-table replace: declare-then-delete so loading this
+# file only ever replaces THIS table and never ufw's ruleset.
+table inet fw_egress
+delete table inet fw_egress
+
+table inet fw_egress {
+  chain egress {
+    type filter hook output priority {{ nftables_egress_priority }}; policy {{ 'drop' if nftables_egress_mode == 'enforce' else 'accept' }};
+
+    # Management safety: never break loop-back or the return path of an
+    # established connection (e.g. the inbound SSH / Ansible session). This is
+    # why enforce mode cannot lock the administrator out.
+    oifname "lo" accept
+    ct state established,related accept
+{% if nftables_egress_mode == 'enforce' %}
+    # Only enforce mode changes traffic; observe never drops (it is log-only).
+    ct state invalid drop
+{% endif %}
+
+    # ICMP / ICMPv6 (incl. IPv6 ND and path-MTU discovery).
+    meta l4proto { icmp, ipv6-icmp } accept
+
+    # Allow-listed egress (proto + dport to any address unless tightened).
+{% for r in (nftables_egress_allow | default([])) %}
+    {{ r.proto }} dport {{ r.dport }} accept comment "{{ r.comment | default('egress allow') }}"
+{% endfor %}
+{% for raw in (nftables_egress_allow_extra | default([])) %}
+    {{ raw }}
+{% endfor %}
+
+    # Unmatched egress: log (rate-limited){{ ', then drop' if nftables_egress_mode == 'enforce' else ' — observe mode still accepts it' }}.
+    limit rate {{ nftables_egress_log_rate }} log prefix "{{ nftables_egress_log_prefix }}" level info
+{% if nftables_egress_mode == 'enforce' %}
+    drop
+{% endif %}
+  }
+}

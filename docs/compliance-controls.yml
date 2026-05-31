@@ -112,6 +112,7 @@ policies:
       - ufw
       - apparmor
       - usbguard
+      - nftables_egress
 
   POL-002:
     title: "Incident response policy"
