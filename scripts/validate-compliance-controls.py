@@ -47,6 +47,10 @@ Rules enforced:
    "Regulatory Scope") is cited by at least one ``regulatory_mapping`` entry,
    so a declared-but-unmapped framework (the gap that left CRA Annex I and
    NISG 2026 unmapped) cannot ship silently.
+10. Derived-index parity. ``docs/controls/README.md`` and
+    ``docs/policies/README.md`` are convenience views that mirror the YAML's
+    role coverage; each CTL-/POL- row's role set must equal the canonical set,
+    so the indexes cannot drift (they had fallen 11 roles behind before this).
 """
 
 from __future__ import annotations
@@ -83,6 +87,18 @@ EXPECTED_FRAMEWORKS = {
     "GDPR": "GDPR (EU 2016/679) / Austrian DSG",
     "ISO 27001": "ISO/IEC 27001:2022",
 }
+
+# Derived, human-facing navigation indexes that MIRROR the role coverage in
+# compliance-controls.yml. They are convenience views (each says so), so they
+# drift silently when a role is added — rule 10 keeps their per-id role lists in
+# lockstep with the canonical YAML. Map of id prefix -> file.
+DERIVED_INDEX_FILES = {
+    "CTL": REPO_ROOT / "docs" / "controls" / "README.md",
+    "POL": REPO_ROOT / "docs" / "policies" / "README.md",
+}
+
+# A derived-index table row: | CTL-001 | <title> | `role`, `role`, … |
+DERIVED_INDEX_ROW_RE = re.compile(r"^\|\s*((?:CTL|POL)-\d{3})\s*\|[^|]*\|\s*(.*?)\s*\|")
 
 
 def fail(msg: str) -> None:
@@ -233,6 +249,61 @@ def validate_framework_coverage(controls: dict, policies: dict) -> None:
             )
 
 
+def validate_derived_indexes(controls: dict, policies: dict) -> None:
+    """Rule 10: docs/{controls,policies}/README.md role tables mirror the YAML.
+
+    These indexes are convenience views that duplicate each control/policy's
+    role coverage, so they drift silently when a role is added (they had fallen
+    11 roles behind before this check existed). Two drift modes are caught:
+    (a) a present row whose role set differs from the canonical
+    compliance-controls.yml set, and (b) a YAML id of the file's prefix that has
+    NO row at all (omission — iterating rows alone would miss it). A missing
+    index file is fine (it is optional).
+    """
+    combined = {**controls, **policies}
+    for prefix, path in DERIVED_INDEX_FILES.items():
+        if not path.is_file():
+            continue
+        expected_ids = {eid for eid in combined if eid.startswith(f"{prefix}-")}
+        seen_ids: set[str] = set()
+        for line in path.read_text(encoding="utf-8").splitlines():
+            match = DERIVED_INDEX_ROW_RE.match(line)
+            if not match:
+                continue
+            eid, roles_cell = match.group(1), match.group(2)
+            seen_ids.add(eid)
+            if eid not in combined:
+                fail(
+                    f"derived-index: {path.relative_to(REPO_ROOT)} lists {eid}, "
+                    f"which does not exist in compliance-controls.yml"
+                )
+            doc_roles = set(re.findall(r"`([a-z0-9_]+)`", roles_cell))
+            yaml_roles = {
+                r for r in (combined[eid].get("roles") or []) if isinstance(r, str)
+            }
+            if doc_roles != yaml_roles:
+                missing = sorted(yaml_roles - doc_roles)
+                extra = sorted(doc_roles - yaml_roles)
+                detail = "; ".join(
+                    part
+                    for part in (
+                        f"missing {missing}" if missing else "",
+                        f"unexpected {extra}" if extra else "",
+                    )
+                    if part
+                )
+                fail(
+                    f"derived-index: {path.relative_to(REPO_ROOT)} row {eid} role "
+                    f"list is out of sync with compliance-controls.yml ({detail})"
+                )
+        missing_rows = sorted(expected_ids - seen_ids)
+        if missing_rows:
+            fail(
+                f"derived-index: {path.relative_to(REPO_ROOT)} is missing a row "
+                f"for {missing_rows} (present in compliance-controls.yml)"
+            )
+
+
 def validate_against_schema(data: object) -> str:
     """Validate *data* against the published JSON Schema (L6).
 
@@ -299,6 +370,7 @@ def main() -> None:
     validate_reverse_mapping(controls, policies, role_header_ids)
 
     validate_framework_coverage(controls, policies)
+    validate_derived_indexes(controls, policies)
 
     schema_status = validate_against_schema(data)
 
@@ -307,6 +379,7 @@ def main() -> None:
         f"roles cross-referenced against {len(known_roles)} role(s); "
         f"bidirectional header cross-references consistent; "
         f"all {len(EXPECTED_FRAMEWORKS)} declared frameworks mapped; "
+        f"derived indexes in sync; "
         f"{schema_status}."
     )
 
