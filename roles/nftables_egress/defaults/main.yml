@@ -1,0 +1,65 @@
+---
+# nftables egress-filtering role defaults.
+#
+# Compliance references:
+#   - POL-001 — access control policy: default-deny applied to OUTBOUND
+#     traffic. ufw governs ingress; this role adds an egress allow-list so a
+#     compromised host cannot freely exfiltrate data or reach command-and-
+#     control — the network analogue of POL-001's default-deny, least-privilege
+#     posture.
+#   - CRA (EU 2024/2847) Annex I Part I — minimise attack surface / contain a
+#     compromise.
+#   - NIS2 Art 21.2(e) — security in network and information systems.
+#   - GDPR Art 5(1)(f) — integrity & confidentiality (limit exfiltration paths).
+#   - ISO 27001:2022 A.8.20 — networks security; A.8.21 — security of network
+#     services.
+#
+# Targets Ubuntu 24.04 / 26.04 LTS. Composes with the ufw role via a SEPARATE
+# nftables table (ufw is never modified). See docs/ADR-004.
+
+# Master switch.
+nftables_egress_enabled: true
+
+# Manage the runtime. Auto-off in container GUESTS: egress filtering is a host
+# network property and needs host netfilter, so a guest skips entirely — same
+# ansible_virtualization_role == 'guest' check as kernel_lockdown / usbguard.
+nftables_egress_manage_runtime: true
+
+# Egress mode — a deliberate RISK LADDER (start off, then observe, then enforce):
+#   "off"     — deploy NOTHING; only ensure nftables is installed. The fleet
+#               baseline is unaffected. DEFAULT, because a wrong egress-deny can
+#               strand a host or cut it off from updates/DNS.
+#   "observe" — load the egress table with policy ACCEPT and LOG every
+#               non-allow-listed new connection. Nothing is dropped — use it to
+#               discover the egress a host actually needs before enforcing.
+#   "enforce" — policy DROP: only loop-back, established/related and the
+#               allow-list may leave the host.
+# Loop-back and established/related are ALWAYS accepted, so enforce never breaks
+# the return path of the inbound SSH / Ansible session.
+nftables_egress_mode: "off"
+
+# Allow-listed egress (proto + destination port, to ANY address unless you add
+# destination matches via nftables_egress_allow_extra). Defaults keep core host
+# functions working under enforce: DNS, NTP, HTTP/HTTPS (apt/updates), DHCP.
+nftables_egress_allow:
+  - { proto: "udp", dport: 53, comment: "DNS" }
+  - { proto: "tcp", dport: 53, comment: "DNS over TCP" }
+  - { proto: "udp", dport: 123, comment: "NTP" }
+  - { proto: "tcp", dport: 80, comment: "HTTP (apt)" }
+  - { proto: "tcp", dport: 443, comment: "HTTPS (apt / updates / APIs)" }
+  - { proto: "udp", dport: 67, comment: "DHCP client" }
+# Raw nft rule fragments for anything more specific — destination CIDRs, the
+# SIEM collector, the Wazuh manager, … — rendered verbatim into the chain, e.g.:
+#   - 'ip daddr 10.20.0.10 tcp dport 514 accept comment "rsyslog SIEM"'
+#   - 'ip daddr 10.20.0.11 tcp dport 1514 accept comment "wazuh manager"'
+nftables_egress_allow_extra: []
+
+# Logging of unmatched egress (rate-limited so it cannot flood the journal).
+nftables_egress_log_rate: "10/minute"
+nftables_egress_log_prefix: "nft-egress-drop "
+# Output base-chain hook priority (0 = the standard filter priority).
+nftables_egress_priority: 0
+
+# Managed paths: a dedicated table + its own loader unit, so ufw is untouched.
+nftables_egress_ruleset_file: /etc/nftables.d/fw_egress.nft
+nftables_egress_service_name: nftables-egress

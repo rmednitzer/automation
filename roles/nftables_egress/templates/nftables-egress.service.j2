@@ -1,0 +1,18 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Load the fw_egress nftables ruleset (roles/nftables_egress)
+Documentation=man:nft(8)
+# Load after ufw so its tables exist first; our separate table composes with it.
+After=network-pre.target ufw.service
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f {{ nftables_egress_ruleset_file }}
+ExecReload=/usr/sbin/nft -f {{ nftables_egress_ruleset_file }}
+# Tolerate the table already being gone on stop (leading '-').
+ExecStop=-/usr/sbin/nft delete table inet fw_egress
+
+[Install]
+WantedBy=multi-user.target

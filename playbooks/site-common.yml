@@ -105,6 +105,17 @@
         - ufw
         - firewall
         - compliance
+    # Default-deny egress (nftables, separate table — composes with ufw). The
+    # network complement to ufw's ingress. Off by default; observe then enforce
+    # per environment. Loop-back + established/related are always allowed, so
+    # enforce can't strand the management session.
+    - role: nftables_egress
+      tags:
+        - nftables-egress
+        - firewall
+        - hardening
+        - security
+        - compliance
     - role: fail2ban
       tags:
         - fail2ban
