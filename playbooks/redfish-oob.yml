@@ -1,0 +1,27 @@
+---
+# Out-of-band (BMC) management via Redfish. ASPIRATIONAL — see docs/ADR-005.
+# Runs from the control/bastion host against the BMC endpoints in redfish_bmcs
+# (define them in an inventory group_vars with vault-backed passwords). Inert
+# until those are defined. Read-only inventory by default.
+#
+#   # Read-only inventory:
+#   ansible-playbook playbooks/redfish-oob.yml
+#
+#   # Power action (explicit, double-confirmed):
+#   ansible-playbook playbooks/redfish-oob.yml \
+#     -e redfish_action=power -e redfish_power_command=GracefulRestart \
+#     -e redfish_confirm_state_change=true
+- name: Out-of-band management via Redfish
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  # Invoking this playbook is the intent to manage BMCs; the role still asserts
+  # redfish_bmcs is non-empty and keeps power actions hard-gated.
+  vars:
+    redfish_enabled: true
+  roles:
+    - role: redfish
+      tags:
+        - redfish
+        - oob
+        - bmc
