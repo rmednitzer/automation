@@ -149,6 +149,16 @@
         - vector
         - logging
         - compliance
+    # Harden the LOCAL rsyslog daemon (restrictive log create-modes, privilege
+    # drop, repeated-message reduction, network-reception audit). Acts only when
+    # rsyslog is present; never touches the forwarding config above.
+    - role: rsyslog_hardening
+      tags:
+        - rsyslog-hardening
+        - logging
+        - hardening
+        - security
+        - compliance
     # HIDS/FIM endpoint reporting to a Wazuh manager. Off unless an
     # environment sets wazuh_agent_enabled (requires a manager + enrolment
     # secret), so the fleet-wide baseline run is unaffected by default.

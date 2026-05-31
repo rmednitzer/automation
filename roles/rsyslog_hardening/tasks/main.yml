@@ -1,0 +1,80 @@
+---
+# Local rsyslog hardening: restrict created-log permissions, drop daemon
+# privileges, collapse repeats, and audit for unintended network log reception.
+# CTL-003.
+
+- name: Harden local rsyslog
+  when: rsyslog_hardening_enabled | bool
+  block:
+    - name: Determine whether to manage the rsyslog runtime
+      ansible.builtin.set_fact:
+        rsyslog_hardening_runtime_managed: >-
+          {{ rsyslog_hardening_manage_runtime | bool
+             and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+                      and (ansible_virtualization_role | default('host')) == 'guest') }}
+
+    - name: Check whether rsyslog is installed
+      ansible.builtin.stat:
+        path: /usr/sbin/rsyslogd
+      register: rsyslog_hardening_rsyslogd
+
+    - name: Note when rsyslog is not installed
+      ansible.builtin.debug:
+        msg: >-
+          rsyslog is not installed; skipping local rsyslog hardening (journald,
+          configured by the common role, handles local logging here).
+      when: not rsyslog_hardening_rsyslogd.stat.exists
+
+    - name: Harden rsyslog when present
+      when: rsyslog_hardening_rsyslogd.stat.exists
+      block:
+        - name: Deploy the rsyslog hardening drop-in
+          ansible.builtin.template:
+            src: 00-hardening.conf.j2
+            dest: /etc/rsyslog.d/00-hardening.conf
+            owner: root
+            group: root
+            mode: "0644"
+          become: true
+          notify: Restart rsyslog
+
+        # Validate the WHOLE config (drop-in in context) before any restart. On
+        # failure the play aborts here, so handlers never flush and the running
+        # daemon keeps its previous, good config.
+        - name: Validate the full rsyslog configuration
+          ansible.builtin.command:
+            cmd: rsyslogd -N1
+          become: true
+          changed_when: false
+          when: rsyslog_hardening_runtime_managed | bool
+
+        # Audit for network log reception (imtcp/imudp) — a stock host has none.
+        - name: Detect rsyslog network log reception (imtcp/imudp)
+          ansible.builtin.command:
+            cmd: grep -REl "^[^#]*(imtcp|imudp)" /etc/rsyslog.conf /etc/rsyslog.d/
+          register: rsyslog_hardening_listeners
+          changed_when: false
+          failed_when: rsyslog_hardening_listeners.rc not in [0, 1]
+          become: true
+
+        - name: Fail when network log reception is configured (opt-in)
+          ansible.builtin.assert:
+            that:
+              - (rsyslog_hardening_listeners.stdout | trim | length) == 0
+            fail_msg: >-
+              rsyslog network input (imtcp/imudp) is configured in
+              {{ rsyslog_hardening_listeners.stdout_lines }}. Disable it, or if
+              this host is an intended syslog server set
+              rsyslog_hardening_fail_on_network_input=false.
+            quiet: true
+          when: rsyslog_hardening_fail_on_network_input | bool
+
+        - name: Warn about rsyslog network reception (audit, non-failing)
+          ansible.builtin.debug:
+            msg: >-
+              NOTE: rsyslog network input found in
+              {{ rsyslog_hardening_listeners.stdout_lines }} — confirm this host
+              is an intended syslog server.
+          when:
+            - not (rsyslog_hardening_fail_on_network_input | bool)
+            - (rsyslog_hardening_listeners.stdout | trim | length) > 0

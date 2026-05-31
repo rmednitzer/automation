@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+# Local rsyslog hardening (roles/rsyslog_hardening). CTL-003.
+# Named 00- so these global directives apply before any other drop-in.
+
+# Restrict permissions on log files and directories rsyslog creates
+# (CIS 4.2.x — log files no more permissive than 0640).
+$FileCreateMode {{ rsyslog_hardening_file_create_mode }}
+$DirCreateMode {{ rsyslog_hardening_dir_create_mode }}
+$Umask {{ rsyslog_hardening_umask }}
+{% if rsyslog_hardening_priv_drop_user | length > 0 %}
+
+# Drop root privileges after startup.
+$PrivDropToUser {{ rsyslog_hardening_priv_drop_user }}
+$PrivDropToGroup {{ rsyslog_hardening_priv_drop_group }}
+{% endif %}
+{% if rsyslog_hardening_repeated_msg_reduction %}
+
+# Collapse repeated messages (log minimisation — GDPR Art 5(1)(c)).
+$RepeatedMsgReduction on
+{% endif %}
