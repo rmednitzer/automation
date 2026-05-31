@@ -9,6 +9,19 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Docs polish — sync the derived compliance indexes and enforce
+  it.** `docs/controls/README.md` and `docs/policies/README.md` are convenience
+  views that mirror the role coverage in `docs/compliance-controls.yml`, but
+  they had fallen 11 roles behind (the role growth was mapped in the canonical
+  YAML and validated, but never propagated to these hand-maintained tables):
+  CTL-002/003 and POL-001/002/003/004 role lists are now back in sync. Added
+  **rule 10** to `scripts/validate-compliance-controls.py` — each CTL-/POL- row
+  in those indexes must equal the canonical YAML role set, so they can't drift
+  again (verified the check fires). Also refreshed the stale "molecule —
+  placeholder" line in `.github/copilot-instructions.md` (real `molecule/default`
+  scenarios ship) to match `CLAUDE.md`. No control mappings or role logic
+  changed.
+
 - 2026-05-31 **Docs alignment — bring the Markdown in step with the code
   (no behaviour change).** The repo grew to 22 roles / 4 playbooks while the
   docs still described the original 10-role / 2-playbook baseline. Refreshed

@@ -78,4 +78,6 @@ Every role:
 - **ansible-lint** (production profile, FQCN + `no-changed-when`
   enforced)
 - **yamllint** (project overrides in `.yamllint`)
-- **molecule** (role testing — placeholder; see LIMITATIONS L2)
+- **molecule** (role testing — `molecule/default` scenarios for `users`,
+  `ssh_hardening`, `auditd`, `common`; on-demand CI via `workflow_dispatch`,
+  see LIMITATIONS L2)
