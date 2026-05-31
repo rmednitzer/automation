@@ -50,6 +50,11 @@ usbguard_present_device_policy: "keep"
 usbguard_inserted_device_policy: "apply-policy"
 
 usbguard_rules_file: /etc/usbguard/rules.conf
+# Rule *folder* for drop-in allow/block snippets. The Ubuntu package enables
+# RuleFolder=/etc/usbguard/rules.d/ by default; keep it set so the role's
+# daemon config does not silently drop operator rules.d/ policy on adoption.
+# Empty = omit RuleFolder (rules.conf only).
+usbguard_rules_folder: /etc/usbguard/rules.d/
 usbguard_daemon_conf: /etc/usbguard/usbguard-daemon.conf
 # Mask usbguard-dbus.service when enforcing. The package ships polkit grants
 # that let active plugdev-group users authorise devices over the usbguard-dbus

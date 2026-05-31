@@ -1,6 +1,9 @@
 # {{ ansible_managed }}
 # USBGuard daemon configuration (roles/usbguard). POL-001 (default-deny USB).
 RuleFile={{ usbguard_rules_file }}
+{% if usbguard_rules_folder | length > 0 %}
+RuleFolder={{ usbguard_rules_folder }}
+{% endif %}
 ImplicitPolicyTarget={{ usbguard_implicit_policy_target }}
 PresentDevicePolicy={{ usbguard_present_device_policy }}
 # Never deauthorise USB controllers on start (that would blackout all USB).

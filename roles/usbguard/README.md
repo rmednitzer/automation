@@ -80,6 +80,7 @@ Manage the allow-list afterwards with the `usbguard` CLI
 | `usbguard_present_device_policy` | `keep` | Already-connected devices on start (`keep` = don't touch) |
 | `usbguard_inserted_device_policy` | `apply-policy` | Newly inserted devices (evaluate vs rules) |
 | `usbguard_audit` | `true` | Report the connected-device count (read-only) |
+| `usbguard_rules_folder` | `/etc/usbguard/rules.d/` | Drop-in rule folder kept in the daemon config (empty = omit) |
 | `usbguard_disable_dbus` | `true` | Mask `usbguard-dbus` when enforcing (close the polkit/D-Bus path) |
 | `usbguard_manage_runtime` | `true` | Manage install/daemon (auto-off in container guests) |
 
