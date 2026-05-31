@@ -30,41 +30,18 @@
     cache_valid_time: 3600
   become: true
 
-- name: Fetch the Datadog/Vector repository signing key (armored)
+- name: Fetch the Datadog/Vector repository signing keys (armored)
   ansible.builtin.get_url:
-    url: "{{ vector_apt_key_url }}"
-    dest: /usr/share/keyrings/vector-datadog.asc
+    url: "{{ item }}"
+    dest: "/usr/share/keyrings/vector-datadog-{{ item | basename }}.asc"
     owner: root
     group: root
     mode: "0644"
+  loop: "{{ vector_apt_key_urls }}"
+  loop_control:
+    label: "{{ item | basename }}"
   become: true
-  register: vector_key_download
-
-# Optional supply-chain pin: verify the fetched ARMORED key BEFORE it is
-# dearmored into the trusted signed-by keyring, so a key failing the pin is
-# never trusted by apt. (Only runs when vector_apt_key_fingerprint is set.)
-- name: Verify the fetched Vector/Datadog key fingerprint (when pinned)
-  when: vector_apt_key_fingerprint | length > 0
-  become: true
-  block:
-    - name: Read the fetched key fingerprint
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail;
-          gpg --show-keys --with-colons /usr/share/keyrings/vector-datadog.asc
-          | awk -F: '/^fpr:/ { print $10; exit }'
-        executable: /bin/bash
-      register: vector_key_fpr
-      changed_when: false
-
-    - name: Assert the fingerprint matches the pinned value
-      ansible.builtin.assert:
-        that:
-          - (vector_key_fpr.stdout | upper) == (vector_apt_key_fingerprint | replace(' ', '') | upper)
-        fail_msg: >-
-          Datadog/Vector repo key fingerprint ({{ vector_key_fpr.stdout }}) does
-          not match vector_apt_key_fingerprint. Refusing to trust the repository.
-        quiet: true
+  register: vector_key_downloads
 
 - name: Stat the dearmored apt keyring
   ansible.builtin.stat:
@@ -72,15 +49,44 @@
   register: vector_keyring_stat
   become: true
 
-# Dearmor into the trusted keyring AFTER verification, refreshing it whenever the
-# armored key changes (rotation) or it is missing — not a one-time creates:,
-# which would keep apt trusting a stale keyring after a key rotation.
-- name: Dearmor the verified key into the apt keyring
-  ansible.builtin.command:
-    cmd: "gpg --batch --yes --dearmor -o {{ vector_apt_keyring }} /usr/share/keyrings/vector-datadog.asc"
+# Dearmor ALL fetched keys into one signed-by keyring (so metadata signed by any
+# active key during a rotation verifies), refreshing whenever a key changes or
+# the keyring is missing — not a one-time creates:, which would keep apt
+# trusting a stale keyring after a rotation.
+- name: Dearmor the Datadog keys into the apt keyring
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; cat /usr/share/keyrings/vector-datadog-*.asc | gpg --batch --yes --dearmor -o {{ vector_apt_keyring }}"
+    executable: /bin/bash
   become: true
-  when: vector_key_download is changed or not vector_keyring_stat.stat.exists
+  when: vector_key_downloads is changed or not vector_keyring_stat.stat.exists
   changed_when: true
+
+# Optional supply-chain pin: after dearmoring (but before apt is configured to
+# use the keyring) assert the keyring holds ONLY pinned fingerprints, so an
+# unexpected key is never trusted. (Only when vector_apt_key_fingerprints set.)
+- name: Verify the dearmored keyring fingerprints (when pinned)
+  when: vector_apt_key_fingerprints | length > 0
+  become: true
+  block:
+    - name: Read the keyring fingerprints
+      ansible.builtin.shell:
+        cmd: >-
+          set -o pipefail;
+          gpg --show-keys --with-colons {{ vector_apt_keyring }}
+          | awk -F: '/^fpr:/ { print $10 }'
+        executable: /bin/bash
+      register: vector_keyring_fprs
+      changed_when: false
+
+    - name: Assert the keyring holds only pinned fingerprints
+      ansible.builtin.assert:
+        that:
+          - (vector_keyring_fprs.stdout_lines | map('upper') | list | reject('in', vector_apt_key_fingerprints | map('replace', ' ', '') | map('upper') | list) | list | length) == 0
+        fail_msg: >-
+          The Datadog keyring contains a fingerprint not in
+          vector_apt_key_fingerprints ({{ vector_keyring_fprs.stdout_lines }}).
+          Refusing to trust the repository.
+        quiet: true
 
 - name: Ensure the apt keyring is world-readable
   ansible.builtin.file:
@@ -136,6 +142,10 @@
     mode: "0640"
     validate: "vector validate --no-environment --config-yaml %s"
   become: true
+  # vector.yaml can embed a sink secret (HEC token, API key); diff:false keeps
+  # the rendered secret out of `--diff`/CI output (site-common documents --diff
+  # as a normal invocation).
+  diff: false
   notify: Restart vector
 
 - name: Enable and start Vector

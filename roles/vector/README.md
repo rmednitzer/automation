@@ -12,8 +12,9 @@ ship the same source to the same SIEM from both roles.
 ## What it does
 
 - Adds the Vector APT repository with a `signed-by` Datadog keyring (packages
-  are verified against the imported signing key); optionally **pins and
-  verifies** the key fingerprint (`vector_apt_key_fingerprint`).
+  are verified against the imported signing keys); imports the documented
+  Datadog key **set** (current + rollover, so rotation doesn't break apt) and
+  optionally **pins** the allowed fingerprints (`vector_apt_key_fingerprints`).
 - Installs `vector` (version-pinnable).
 - Deploys `/etc/vector/vector.yaml` from `vector_sources` / `vector_transforms`
   / `vector_sinks`, validated with `vector validate` before it is placed.
@@ -62,7 +63,7 @@ ship the same source to the same SIEM from both roles.
 | `vector_transforms` | `{}` | Optional Vector transforms |
 | `vector_sinks` | `{}` | **Required when enabled** — where logs go (use a vault var for secrets) |
 | `vector_version` | `""` (latest) | Pin a package version, e.g. `0.40.0-1` |
-| `vector_apt_key_fingerprint` | `""` | Optional supply-chain pin (verified when set) |
+| `vector_apt_key_fingerprints` | `[]` | Optional supply-chain pin — allowed key fingerprints (verified when set) |
 | `vector_manage_service` | `true` | Manage the service (auto-off in container guests) |
 
 Full list in `defaults/main.yml`.
