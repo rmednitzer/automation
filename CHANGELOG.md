@@ -9,6 +9,20 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **AI-in-CI — advisory compliance review via local inference
+  (ADR-006).** Second AI-native capability. A new workflow
+  (`.github/workflows/ai-compliance-review.yml`) + stdlib-only script
+  (`scripts/ai-compliance-review.py`) run an LLM review of a PR's changed role
+  compliance headers against the control catalog — using a **local Ollama
+  endpoint**, so diffs never leave the estate for a hosted AI API (POL-004 data
+  sovereignty, coherent with the `ollama` role). **Advisory and non-blocking**:
+  any failure (no endpoint, unreachable, empty response) skips gracefully with
+  `exit 0`; the deterministic `validate-compliance-controls.py` stays the
+  authoritative gate. **Dormant** until `AI_REVIEW_OLLAMA_ENDPOINT` is set (like
+  the aspirational `redfish` role); for sovereignty it runs on a self-hosted
+  runner with access to the inference host. `docs/ADR-006` records the rationale.
+  GDPR Art 25 / Art 44, ISO 27001:2022 A.8.9 / A.8.28.
+
 - 2026-05-31 **New `ollama` role — local LLM inference runtime (POL-004).**
   First AI-native capability. Provisions [Ollama](https://ollama.com) on
   dedicated inference hosts (e.g. the GPU compute host) so inference stays
