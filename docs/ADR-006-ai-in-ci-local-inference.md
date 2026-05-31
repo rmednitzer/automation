@@ -31,7 +31,10 @@ The advisory review (`scripts/ai-compliance-review.py`) talks to a **local
 Ollama endpoint** (`AI_REVIEW_OLLAMA_ENDPOINT`), not a hosted API. Diffs and the
 control catalog never leave the estate — the same sovereignty stance as the
 `ollama` role (GDPR Art 25 / Art 44). For real use it runs on a **self-hosted
-runner** with network access to the local inference host.
+runner** with network access to the local inference host. Because that runner
+sits on the internal network, the workflow executes the review script **from the
+base ref** (the trusted target branch), never the PR checkout — so PR-controlled
+code cannot run on the on-prem runner; the PR's files are only read as data.
 
 ### 2. Advisory and non-blocking
 
@@ -43,10 +46,13 @@ availability or nondeterminism. Findings are posted to the GitHub step summary.
 
 ### 3. Dormant by default
 
-The workflow is gated on `vars.AI_REVIEW_OLLAMA_ENDPOINT`; with no endpoint
-configured the job is **skipped entirely** (like the aspirational `redfish`
-role). Enabling it is a deliberate, per-environment opt-in — set the variable
-(and, for sovereignty, a self-hosted runner) and the review activates.
+The workflow is gated on **both** `vars.AI_REVIEW_OLLAMA_ENDPOINT` **and**
+`vars.AI_REVIEW_RUNNER`; with either unset the job is **skipped entirely** (like
+the aspirational `redfish` role). The runner has **no hosted fallback** — it is
+whatever `AI_REVIEW_RUNNER` names — so enabling the review forces the operator
+to choose a (self-hosted, on-prem) runner deliberately, rather than silently
+running from GitHub-hosted infrastructure and weakening the sovereignty
+boundary. Enabling it is thus an explicit, per-environment opt-in.
 
 ### 4. Stdlib only
 

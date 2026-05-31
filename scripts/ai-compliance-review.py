@@ -23,15 +23,25 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 
+def _int_env(name: str, default: int) -> int:
+    """Parse an int env var, falling back to default on any malformed value so a
+    bad configuration can't crash before the graceful-skip path runs."""
+    try:
+        return int(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
 ENDPOINT = os.environ.get("OLLAMA_ENDPOINT", "").rstrip("/")
 MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 BASE = os.environ.get("BASE_SHA", "") or "origin/main"
-TIMEOUT = int(os.environ.get("AI_REVIEW_TIMEOUT", "120"))
+TIMEOUT = _int_env("AI_REVIEW_TIMEOUT", 120)
 SUMMARY = os.environ.get("GITHUB_STEP_SUMMARY", "")
 HEADER = "### AI compliance review (advisory — local inference)"
 
@@ -66,8 +76,18 @@ def main() -> None:
         if line.startswith(("roles/", "playbooks/")) or line == "docs/compliance-controls.yml"
     ]
     headers = [f for f in changed if f.endswith("defaults/main.yml")]
-    if not headers:
-        skip("no role compliance headers changed")
+    catalog_changed = "docs/compliance-controls.yml" in changed
+    role_dirs = sorted(
+        {match.group(0) for f in changed if (match := re.match(r"roles/[^/]+", f))}
+    )
+    # Roles touched but with no header on disk (e.g. a new role added without one).
+    missing_header = [
+        d for d in role_dirs if not os.path.exists(os.path.join(d, "defaults", "main.yml"))
+    ]
+    # Review header changes, catalog edits, and new headerless roles — not just
+    # changed headers (so catalog-only and missing-header PRs are still covered).
+    if not (headers or catalog_changed or missing_header):
+        skip("no role header, catalog, or new-role changes to review")
 
     context_blocks = []
     for path in headers:
@@ -77,6 +97,12 @@ def main() -> None:
         except OSError:
             continue
         context_blocks.append(f"#### {path}\n{head}")
+    if missing_header:
+        context_blocks.append(
+            "#### Roles changed without a defaults/main.yml compliance header\n"
+            + "\n".join(f"- {d}" for d in missing_header)
+            + "\n"
+        )
 
     try:
         with open("docs/compliance-controls.yml", encoding="utf-8") as handle:
@@ -87,8 +113,8 @@ def main() -> None:
     prompt = (
         "You are a compliance reviewer for an Ansible fleet-hardening repository. "
         "The control catalog defines CTL-/POL- controls and lists which roles "
-        "implement each. For the CHANGED role compliance headers below, flag ONLY "
-        "concrete issues: (1) a header that cites a CTL-/POL- id while that role is "
+        "implement each. For the CHANGED role headers and/or control-catalog edits "
+        "below, flag ONLY concrete issues: (1) a header that cites a CTL-/POL- id while that role is "
         "not listed under that control in the catalog (or the reverse); (2) a "
         "missing compliance header; (3) a compliance/hardening claim that looks "
         "unsupported. Be concise, use bullet points, and reply exactly "
