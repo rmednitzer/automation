@@ -42,6 +42,11 @@ Rules enforced:
 8. The document validates against the published JSON Schema at
    ``docs/schemas/compliance-controls.schema.json`` (only when ``jsonschema``
    is installed; the schema file must always be valid JSON).
+9. Framework coverage. Every framework the repository declares alignment with
+   (``EXPECTED_FRAMEWORKS``, mirroring the file header and the README
+   "Regulatory Scope") is cited by at least one ``regulatory_mapping`` entry,
+   so a declared-but-unmapped framework (the gap that left CRA Annex I and
+   NISG 2026 unmapped) cannot ship silently.
 """
 
 from __future__ import annotations
@@ -64,6 +69,20 @@ POLICY_ID_PREFIX = "POL-"
 
 # Matches CTL-NNN / POL-NNN identifiers in a role's defaults header comments.
 COMPLIANCE_ID_RE = re.compile(r"\b(?:CTL|POL)-\d{3}\b")
+
+# Frameworks the repository declares alignment with (the compliance-controls.yml
+# header and the README "Regulatory Scope"). Each MUST be cited by at least one
+# regulatory_mapping entry, or the declared scope is aspirational rather than
+# implemented. The key is the citation prefix used in regulatory_mapping entries
+# ("NIS2 Art …", "CRA Annex I …", "NISG 2026 — …", etc.); keep it in sync with
+# the file header and README when the scope genuinely changes.
+EXPECTED_FRAMEWORKS = {
+    "NIS2": "NIS2 Directive (EU 2022/2555)",
+    "NISG 2026": "NISG 2026 (Austrian NIS2 transposition)",
+    "CRA": "Cyber Resilience Act (EU 2024/2847) Annex I",
+    "GDPR": "GDPR (EU 2016/679) / Austrian DSG",
+    "ISO 27001": "ISO/IEC 27001:2022",
+}
 
 
 def fail(msg: str) -> None:
@@ -191,6 +210,29 @@ def validate_reverse_mapping(
                 )
 
 
+def validate_framework_coverage(controls: dict, policies: dict) -> None:
+    """Rule 9: every declared framework is cited by >= 1 regulatory_mapping.
+
+    Guards against a framework being named in scope (the file header and the
+    README "Regulatory Scope") while no control or policy actually maps to it —
+    the exact gap this check was added to close, where CRA Annex I and NISG 2026
+    were declared frameworks but every regulatory_mapping cited only NIS2 / GDPR
+    / ISO 27001. A declared-but-unmapped framework is aspirational, not
+    implemented, and must not ship silently.
+    """
+    refs: list[str] = []
+    for body in {**controls, **policies}.values():
+        mapping = body.get("regulatory_mapping") or []
+        refs.extend(ref for ref in mapping if isinstance(ref, str))
+    for key, label in EXPECTED_FRAMEWORKS.items():
+        if not any(ref.startswith(key) for ref in refs):
+            fail(
+                f"framework-coverage: '{key}' ({label}) is declared in scope "
+                f"but no regulatory_mapping entry cites it — add a mapping that "
+                f"starts with '{key}', or remove it from the declared frameworks"
+            )
+
+
 def validate_against_schema(data: object) -> str:
     """Validate *data* against the published JSON Schema (L6).
 
@@ -256,12 +298,15 @@ def main() -> None:
     role_header_ids = parse_role_header_ids()
     validate_reverse_mapping(controls, policies, role_header_ids)
 
+    validate_framework_coverage(controls, policies)
+
     schema_status = validate_against_schema(data)
 
     print(
         f"OK: {len(controls)} control(s), {len(policies)} policy(ies); "
         f"roles cross-referenced against {len(known_roles)} role(s); "
         f"bidirectional header cross-references consistent; "
+        f"all {len(EXPECTED_FRAMEWORKS)} declared frameworks mapped; "
         f"{schema_status}."
     )
 

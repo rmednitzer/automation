@@ -9,6 +9,24 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Regulatory framework coverage — map CRA Annex I and NISG 2026
+  (audit remediation).** `docs/compliance-controls.yml` declared five
+  frameworks in scope (NIS2, NISG 2026, CRA Annex I, GDPR, ISO 27001) but every
+  `regulatory_mapping` cited only NIS2 / GDPR / ISO — **CRA Annex I and NISG
+  2026 were declared but unmapped**. Added the missing citations across
+  **CTL-001/002/003** and **POL-001/002/003/004/005**: CRA citations point to
+  Annex I, Part I (2)(a)-(m) (verified against EUR-Lex CELEX 32024R2847) — e.g.
+  (2)(d) unauthorised-access→CTL-001/POL-001, (2)(e) encryption→POL-003/POL-004,
+  (2)(g) minimisation→POL-004, (2)(j) attack-surface→POL-001, (2)(k)
+  exploitation-mitigation→POL-002, (2)(l) record/monitor activity→
+  CTL-002/CTL-003/POL-005; NISG 2026 entries reference the transposed NIS2
+  article (Austrian §-numbering deliberately not pinned until verifiable). Added
+  a **framework-coverage check (rule 9)** to
+  `scripts/validate-compliance-controls.py` (`EXPECTED_FRAMEWORKS`) so a
+  declared-but-unmapped framework now fails the build — the gap can't recur. No
+  control's roles or scope changed; only the regulatory citations were
+  completed.
+
 - 2026-05-31 **Container-guest gating for `ntp` / `ufw` / `fail2ban` /
   `rkhunter`, plus server-side secret scanning (audit remediation).** Extends
   the container-awareness already in `auditd` / `log_forwarding` to the
