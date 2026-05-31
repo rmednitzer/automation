@@ -47,7 +47,7 @@
                 backup: true
               become: true
               register: rsyslog_hardening_dropin
-              notify: Restart rsyslog
+              notify: Restart rsyslog for hardening
 
             - name: Validate the full rsyslog configuration
               ansible.builtin.command:

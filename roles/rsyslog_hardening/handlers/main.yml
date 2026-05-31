@@ -1,7 +1,10 @@
 ---
 # rsyslog_hardening handlers
 
-- name: Restart rsyslog
+# Unique name: handler names are global across the play, so a shared "Restart
+# rsyslog" would shadow log_forwarding's same-named handler (this role loads
+# later) and its when: guard could silently skip log_forwarding's restart.
+- name: Restart rsyslog for hardening
   ansible.builtin.systemd_service:
     name: rsyslog
     state: restarted
