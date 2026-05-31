@@ -16,6 +16,15 @@ Rootkit detection via rkhunter for Ubuntu 24.04 LTS.
   silent re-baselining defeats the point of integrity checking
 - Rotates `/var/log/rkhunter.log` (weekly, 52 rotations ≈ 1 year)
 
+## Container guests
+
+On a container **guest** rkhunter only sees the container's namespaced view
+(host-kernel rootkits aren't assessable from inside, and many checks
+false-positive). The role still installs the package and deploys its config and
+logrotate, but **skips the file-property baseline, the scheduled scan, and the
+post-apt re-baseline** under `rkhunter_runtime_managed`. Rootkit scanning is the
+host's job; a container *host* scans itself normally.
+
 ## Key variables
 
 | Variable | Default | Description |

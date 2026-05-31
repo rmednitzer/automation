@@ -1,6 +1,19 @@
 ---
 # UFW firewall role for Ubuntu 24.04/26.04 LTS
 
+# UFW configures the host firewall via netfilter. Inside a container GUEST there
+# is no NET_ADMIN over the host's netfilter, so every `ufw` policy/rule/enable
+# operation fails — the host owns the perimeter firewall. Compute the guard once
+# (same guest check as the auditd/log_forwarding roles): skip only when this
+# host is a container *guest*; a container HOST (role 'host') owns the real
+# firewall and must manage it. ufw is still installed and /etc/default/ufw still
+# configured — only the netfilter-touching operations below are gated.
+- name: Determine whether to manage the ufw runtime
+  ansible.builtin.set_fact:
+    ufw_runtime_managed: >-
+      {{ not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+              and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 - name: Install UFW
   ansible.builtin.apt:
     name: ufw
@@ -22,72 +35,79 @@
     mode: "0644"
   become: true
 
-- name: Reset UFW to defaults
-  community.general.ufw:
-    state: reset
-  become: true
-  when: ufw_reset
+# Every operation below drives netfilter through the `ufw` command and so is
+# gated on ufw_runtime_managed — skipped in container guests where the host owns
+# the firewall (see the set_fact above). Each task keeps its own condition; the
+# block's `when` ANDs onto all of them.
+- name: Configure the host firewall (netfilter operations)
+  when: ufw_runtime_managed
+  block:
+    - name: Reset UFW to defaults
+      community.general.ufw:
+        state: reset
+      become: true
+      when: ufw_reset
 
-- name: Set default incoming policy
-  community.general.ufw:
-    direction: incoming
-    policy: "{{ ufw_default_incoming }}"
-  become: true
+    - name: Set default incoming policy
+      community.general.ufw:
+        direction: incoming
+        policy: "{{ ufw_default_incoming }}"
+      become: true
 
-- name: Set default outgoing policy
-  community.general.ufw:
-    direction: outgoing
-    policy: "{{ ufw_default_outgoing }}"
-  become: true
+    - name: Set default outgoing policy
+      community.general.ufw:
+        direction: outgoing
+        policy: "{{ ufw_default_outgoing }}"
+      become: true
 
-- name: Set default forward policy
-  community.general.ufw:
-    direction: routed
-    policy: "{{ ufw_default_forward }}"
-  become: true
+    - name: Set default forward policy
+      community.general.ufw:
+        direction: routed
+        policy: "{{ ufw_default_forward }}"
+      become: true
 
-- name: Apply rate limiting on SSH
-  community.general.ufw:
-    rule: limit
-    port: "22"
-    proto: tcp
-    comment: "SSH rate limit"
-  become: true
-  when: ufw_rate_limit_ssh
+    - name: Apply rate limiting on SSH
+      community.general.ufw:
+        rule: limit
+        port: "22"
+        proto: tcp
+        comment: "SSH rate limit"
+      become: true
+      when: ufw_rate_limit_ssh
 
-- name: Apply UFW rules
-  community.general.ufw:
-    rule: "{{ item.rule }}"
-    port: "{{ item.port }}"
-    proto: "{{ item.proto | default('tcp') }}"
-    src: "{{ item.src | default(omit) }}"
-    comment: "{{ item.comment | default(omit) }}"
-  loop: "{{ ufw_rules }}"
-  loop_control:
-    label: "{{ item.comment | default(item.rule ~ ' ' ~ item.port) }}"
-  become: true
+    - name: Apply UFW rules
+      community.general.ufw:
+        rule: "{{ item.rule }}"
+        port: "{{ item.port }}"
+        proto: "{{ item.proto | default('tcp') }}"
+        src: "{{ item.src | default(omit) }}"
+        comment: "{{ item.comment | default(omit) }}"
+      loop: "{{ ufw_rules }}"
+      loop_control:
+        label: "{{ item.comment | default(item.rule ~ ' ' ~ item.port) }}"
+      become: true
 
-- name: Apply raw UFW rules
-  ansible.builtin.command:
-    cmd: "ufw {{ item }}"
-  loop: "{{ ufw_raw_rules }}"
-  register: ufw_raw_result
-  # changed_when is evaluated per loop iteration; ufw_raw_result here is the
-  # current item's result, not the post-loop aggregate. default('') guards
-  # the rare case where stdout is absent so it can never raise undefined.
-  changed_when: >-
-    'Skipping adding existing rule' not in (ufw_raw_result.stdout | default(''))
-    and 'Skipping inserting existing rule' not in (ufw_raw_result.stdout | default(''))
-  become: true
-  when: ufw_raw_rules | length > 0
+    - name: Apply raw UFW rules
+      ansible.builtin.command:
+        cmd: "ufw {{ item }}"
+      loop: "{{ ufw_raw_rules }}"
+      register: ufw_raw_result
+      # changed_when is evaluated per loop iteration; ufw_raw_result here is the
+      # current item's result, not the post-loop aggregate. default('') guards
+      # the rare case where stdout is absent so it can never raise undefined.
+      changed_when: >-
+        'Skipping adding existing rule' not in (ufw_raw_result.stdout | default(''))
+        and 'Skipping inserting existing rule' not in (ufw_raw_result.stdout | default(''))
+      become: true
+      when: ufw_raw_rules | length > 0
 
-- name: Configure UFW logging
-  community.general.ufw:
-    logging: "{{ ufw_logging }}"
-  become: true
+    - name: Configure UFW logging
+      community.general.ufw:
+        logging: "{{ ufw_logging }}"
+      become: true
 
-- name: Enable UFW
-  community.general.ufw:
-    state: enabled
-  become: true
-  when: ufw_enabled
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+      become: true
+      when: ufw_enabled

@@ -6,3 +6,7 @@
     name: fail2ban
     state: restarted
   become: true
+  # Skipped in container guests (fail2ban_runtime_managed, set in tasks/main.yml):
+  # no fail2ban daemon runs there. jail.local is still deployed, so a container
+  # converge still exercises the config-as-code path.
+  when: fail2ban_runtime_managed

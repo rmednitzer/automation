@@ -9,6 +9,30 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-05-31 **Container-guest gating for `ntp` / `ufw` / `fail2ban` /
+  `rkhunter`, plus server-side secret scanning (audit remediation).** Extends
+  the container-awareness already in `auditd` / `log_forwarding` to the
+  remaining host-level service roles so they converge cleanly on a container
+  **guest** (and can join the molecule matrix once scenarios land — see the
+  `molecule` job note in `ci.yml`). Each role computes a
+  `<role>_runtime_managed` guest check (a container `ansible_virtualization_type`
+  **and** `ansible_virtualization_role == 'guest'`) and **still installs
+  packages and deploys config-as-code**, gating only the host-runtime steps:
+  `ntp` skips starting/verifying chrony and its restart handler (the clock is
+  host-global); `ufw` skips all netfilter operations (no `NET_ADMIN` in a
+  guest); `fail2ban` skips the daemon start and restart handler while keeping
+  `fail2ban-client -t` config validation; `rkhunter` skips the property
+  baseline, the scheduled scan, and the post-apt re-baseline (host-namespaced
+  scan). A container *host* (role `host`) still manages everything. Also adds a
+  dedicated **`Secret Scan (gitleaks)`** CI job
+  ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) running a full
+  working-tree `gitleaks dir` scan — the existing pre-commit `gitleaks` hook
+  scans STAGED changes only, a no-op in a clean CI checkout — pinned by
+  immutable image digest (gitleaks v8.30.1, matching the companion repos);
+  `.gitleaks.toml` excludes the vendored, gitignored `collections/` tree
+  (third-party deps, not our secrets). No control mappings change (CTL-003 and
+  POL-002 remain implemented; only their runtime steps are gated in containers).
+
 - 2026-05-31 **Audit remediation — 26.04 deployability + auditd handler
   collision (correctness).** Two HIGH-severity fixes from the multi-repo audit.
   (1) `playbooks/site-common.yml` and `playbooks/sre-toolchain.yml` asserted

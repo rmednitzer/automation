@@ -2,6 +2,21 @@
 # rkhunter role for Ubuntu 24.04/26.04 LTS
 # NIS2 Art 21.2(a)(b), GDPR Art 32, ISO 27001 A.8.7
 
+# rkhunter is a HOST rootkit scanner. Inside a container GUEST it only sees the
+# container's namespaced view — host-kernel rootkits aren't assessable from
+# inside and many checks false-positive — and rootkit scanning is the host's
+# responsibility. Compute the guard once (same guest check as the auditd/
+# log_forwarding roles): skip only when this host is a container *guest*; a
+# container HOST (role 'host') is a real machine and must scan itself. The
+# package, config, report dir, and logrotate are still deployed (config-as-
+# code) — only the file-property baseline, the scheduled scan, and the post-apt
+# re-baseline below are gated.
+- name: Determine whether to manage the rkhunter runtime
+  ansible.builtin.set_fact:
+    rkhunter_runtime_managed: >-
+      {{ not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+              and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 - name: Install rkhunter
   ansible.builtin.apt:
     name: rkhunter
@@ -56,6 +71,7 @@
     - rkhunter_enabled
     - rkhunter_update_db
     - not rkhunter_propupd_marker.stat.exists
+    - rkhunter_runtime_managed
   changed_when: true
 
 - name: Record rkhunter propupd baseline marker
@@ -73,6 +89,7 @@
     - rkhunter_enabled
     - rkhunter_update_db
     - not rkhunter_propupd_marker.stat.exists
+    - rkhunter_runtime_managed
 
 - name: Deploy rkhunter cron job
   ansible.builtin.cron:
@@ -94,6 +111,7 @@
   when:
     - rkhunter_enabled
     - rkhunter_cron_enabled
+    - rkhunter_runtime_managed
 
 - name: Deploy APT hook for rkhunter database update after upgrades
   ansible.builtin.copy:
@@ -108,6 +126,7 @@
   when:
     - rkhunter_enabled
     - rkhunter_apt_hook
+    - rkhunter_runtime_managed
 
 - name: Deploy rkhunter logrotate configuration
   ansible.builtin.copy:

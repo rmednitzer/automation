@@ -1,0 +1,24 @@
+# gitleaks configuration for automation.
+#
+# The "Secret Scan (gitleaks)" CI job (.github/workflows/ci.yml) runs
+# `gitleaks dir` over the working tree and auto-loads this file. It extends
+# gitleaks' built-in ruleset (so every default rule still applies to our code)
+# and excludes only the vendored third-party dependencies below.
+title = "automation gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+The Ansible Galaxy collections under collections/ are vendored third-party
+dependencies — gitignored, and installed by `ansible-galaxy install -r
+requirements.yml`. Their upstream example/doc strings trip generic-api-key,
+but they are not this repository's secrets and are out of scope for our scan
+(their supply-chain integrity is covered by requirements.yml pins and the
+galaxy-sbom CI job). collections/ is gitignored, so a fresh CI checkout will
+not contain it; this entry keeps a local `gitleaks dir .` clean and the job
+robust if the directory is ever present. This is a vendored-dependency
+exclusion, not an allowlist of any first-party path.
+"""
+paths = ['''^collections/''']

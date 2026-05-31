@@ -11,6 +11,14 @@ UFW firewall management for Ubuntu 24.04 LTS.
 - Supports raw rules for complex scenarios
 - Enables firewall logging
 
+## Container guests
+
+On a container **guest** there is no `NET_ADMIN` over the host's netfilter. The
+role still installs UFW and configures `/etc/default/ufw` but **skips every
+firewall operation** (reset, default policies, rules, logging, enable) under
+`ufw_runtime_managed`. The host owns the perimeter firewall; a container *host*
+manages it normally.
+
 ## Key variables
 
 | Variable | Default | Description |

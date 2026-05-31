@@ -6,3 +6,7 @@
     name: chrony
     state: restarted
   become: true
+  # Skipped in container guests (ntp_runtime_managed, set in tasks/main.yml):
+  # there is no chrony daemon to restart there. The config is still deployed,
+  # so a container converge still exercises the config-as-code path.
+  when: ntp_runtime_managed
