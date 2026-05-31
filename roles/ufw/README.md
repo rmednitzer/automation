@@ -1,6 +1,6 @@
 # `ufw` role
 
-UFW firewall management for Ubuntu 24.04 LTS.
+UFW firewall management for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 

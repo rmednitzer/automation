@@ -1,6 +1,6 @@
 # `aide` role
 
-File integrity monitoring via AIDE for Ubuntu 24.04 LTS.
+File integrity monitoring via AIDE for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 

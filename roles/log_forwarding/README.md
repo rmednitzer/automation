@@ -1,7 +1,7 @@
 # `log_forwarding` role
 
 Centralised log forwarding via rsyslog (syslog) and `audisp-remote`
-(auditd) for Ubuntu 24.04 LTS.
+(auditd) for Ubuntu 24.04 LTS and 26.04 LTS (ADR-004).
 
 ## What it does
 

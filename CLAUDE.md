@@ -49,7 +49,7 @@ automation/
 │   ├── hosts              # Inventory definitions
 │   ├── group_vars/        # Per-env group variables
 │   └── host_vars/         # Per-env host-specific variables
-├── playbooks/             # site-common, sre-toolchain
+├── playbooks/             # site-common, sre-toolchain, local-inference, redfish-oob
 ├── roles/<role>/
 │   ├── defaults/main.yml  # Default variables (overridable)
 │   ├── tasks/main.yml     # Main task list
@@ -59,7 +59,7 @@ automation/
 │   ├── meta/main.yml      # Role metadata (Galaxy info, dependencies)
 │   └── README.md          # Role documentation
 ├── group_vars/all.yml     # Global group variables
-├── docs/                  # ADR-001, compliance-controls.yml
+├── docs/                  # ADRs, compliance-controls.yml, schemas/, examples/
 └── scripts/               # validate-compliance-controls.py
 ```
 
@@ -69,15 +69,21 @@ Do not pre-create empty plugin directories.
 
 ## Current state
 
-- A compliance-aligned hardening baseline of 10 roles applied to all
-  fleet hosts by `playbooks/site-common.yml`: `common`, `users`, `ntp`,
-  `ssh_hardening`, `ufw`, `fail2ban`, `aide`, `rkhunter`,
-  `log_forwarding`, `auditd`.
-- An operator-host toolchain role (`sre_toolchain`) invoked by
-  `playbooks/sre-toolchain.yml`, installing pinned-to-latest
-  SRE/Platform/Security binaries from upstream GitHub releases with
-  SHA256 verification. Not part of the hardening baseline — targets
-  operator hosts only (workstations, admin/bastion VMs, CI runners).
+- A compliance-aligned hardening baseline of 19 roles applied to fleet
+  hosts by `playbooks/site-common.yml`: `common`, `apparmor`,
+  `kernel_lockdown`, `usbguard`, `users`, `ntp`, `dns`, `ssh_hardening`,
+  `ufw`, `nftables_egress`, `fail2ban`, `aide`, `rkhunter`, `auditd`,
+  `log_forwarding`, `rsyslog_hardening`, `systemd_hardening` — plus
+  `vector` and `wazuh_agent`, which stay **opt-in** (each needs a SIEM /
+  manager endpoint, so the default baseline run is unaffected).
+- Three roles live outside the baseline, each driven by its own playbook:
+  `sre_toolchain` (`sre-toolchain.yml`) installs pinned-to-latest
+  SRE/Platform/Security binaries from upstream GitHub releases with SHA256
+  verification (operator hosts only — workstations, admin/bastion VMs, CI
+  runners); `ollama` (`local-inference.yml`) provisions a local inference
+  runtime; `redfish` (`redfish-oob.yml`) manages out-of-band BMC/Redfish
+  configuration.
+- **22 roles** and **4 playbooks** in total.
 
 Target OS: Ubuntu 24.04 LTS (Noble) and Ubuntu 26.04 LTS (Resolute,
 kernel 7.0). Each role's `meta/main.yml` declares both `noble` and
@@ -270,7 +276,10 @@ ansible-vault view <file>
 - **ansible-lint** (production profile, FQCN + `no-changed-when`
   enforced)
 - **yamllint** (project overrides in `.yamllint`)
-- **molecule** (role testing — placeholder, see LIMITATIONS L2)
+- **molecule** (role testing — `molecule/default` scenarios for `users`,
+  `ssh_hardening`, `auditd`, `common`; run on-demand via the CI
+  `workflow_dispatch` matrix since they need systemd-in-Docker, see
+  LIMITATIONS L2)
 
 ## Workflow
 

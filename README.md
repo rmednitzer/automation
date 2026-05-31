@@ -58,30 +58,48 @@ ansible-playbook -i inventories/<env>/hosts playbooks/site-common.yml --tags ssh
 
 ## Roles
 
+Listed in `playbooks/site-common.yml` application order; the three roles
+below the rule ship in their own playbooks. Full regulatory detail per
+control lives in [`docs/compliance-controls.yml`](docs/compliance-controls.yml).
+
 | Role | Purpose | Key compliance references |
 |------|---------|---------------------------|
 | `common` | Base packages, timezone, sysctl, kernel/FS hardening, log retention | CTL-002, CTL-003, POL-004, NIS2 Art 21.2(a)(e), GDPR Art 25/32, CRA Annex I |
+| `apparmor` | Ensure the AppArmor MAC LSM is enabled and profiles enforced | POL-001 |
+| `kernel_lockdown` | Audit the kernel lockdown LSM level; opt-in enforcement, module/kexec restrictions | POL-004 |
+| `usbguard` | Audit the USB attack surface; opt-in default-deny device allowlisting | POL-001 |
 | `users` | User accounts, sudo, password policy, account lockout | CTL-001, POL-001, POL-003, NIS2 Art 21.2(i), GDPR Art 32 |
 | `ntp` | `chrony` time sync (Austrian/EU NTP pools, NTS) | CTL-003, POL-002, POL-003, ISO 27001 A.8.17 |
+| `dns` | DNS resolver hardening via `systemd-resolved` (DNSSEC/DoT) | POL-003 |
 | `ssh_hardening` | SSH server hardening, legal banner, BSI-aligned crypto | CTL-001, POL-001, POL-003, NIS2 Art 21.2(h)(i) |
 | `ufw` | UFW firewall, default-deny, IPv6, rate limiting | POL-001, NIS2 Art 21.2(e), GDPR Art 32 |
+| `nftables_egress` | Default-deny outbound (egress) filtering with an allow-list | POL-001 |
 | `fail2ban` | Intrusion prevention with `recidive` jail | POL-002, NIS2 Art 21.2(b) |
 | `aide` | File integrity monitoring | CTL-002, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 32 |
 | `rkhunter` | Rootkit detection (known-rootkit signatures, file-property integrity, suspicious-file scans; noisy host-state probes disabled — see role README) | POL-002, NIS2 Art 21.2(a)(b), GDPR Art 32, ISO 27001 A.8.7 |
-| `log_forwarding` | Central log forwarding via rsyslog (TLS) + `audisp-remote` | CTL-002, CTL-003, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 5(2) |
 | `auditd` | System audit logging (CIS + NIS2/GDPR rules) | CTL-002, CTL-003, POL-004, POL-005, GDPR Art 5(2), NIS2 Art 21.2(a) |
+| `log_forwarding` | Central log forwarding via rsyslog (TLS) + `audisp-remote` | CTL-002, CTL-003, POL-002, POL-003, NIS2 Art 21.2(a), GDPR Art 5(2) |
+| `vector` | Log shipper (journald → SIEM) — **opt-in** (`vector_enabled`) | CTL-002, CTL-003, POL-003 |
+| `rsyslog_hardening` | Harden the local rsyslog daemon (create-modes, privilege drop, reception audit) | CTL-003 |
+| `wazuh_agent` | Wazuh HIDS/FIM agent enrolment — **opt-in** (`wazuh_agent_enabled`) | CTL-002, POL-002 |
+| `systemd_hardening` | Per-service systemd sandboxing + `systemd-analyze` security audit | POL-004 |
 | `sre_toolchain` | SRE/Platform/Security toolchain installer (kind, flux, trivy, sops, cosign, opa, k6, …) for operator hosts | NIS2 Art 21.2(a)(e), CRA Annex I, ISO 27001 A.8.30, POL-002, CTL-002 |
+| `ollama` | Local LLM inference runtime ([Ollama](https://ollama.com)) — on-prem data sovereignty | POL-004 |
+| `redfish` | Aspirational out-of-band (BMC) management via Redfish | POL-001 |
 
-The first ten roles form the fleet hardening baseline applied by
-`playbooks/site-common.yml`. `sre_toolchain` targets operator hosts
-only (workstations, admin/bastion VMs, CI runners) via
-`playbooks/sre-toolchain.yml`.
+The first nineteen roles form the fleet hardening baseline applied by
+`playbooks/site-common.yml` (`vector` and `wazuh_agent` stay opt-in — each
+needs a SIEM / manager endpoint, so the default baseline run is unaffected).
+The last three ship in dedicated playbooks: `sre_toolchain` targets operator
+hosts only (workstations, admin/bastion VMs, CI runners) via
+`playbooks/sre-toolchain.yml`; `ollama` via `playbooks/local-inference.yml`;
+`redfish` via `playbooks/redfish-oob.yml`.
 
 ## Repository structure
 
 ```
 inventories/<env>/    # production, staging, development (each with own group_vars, host_vars)
-playbooks/            # Top-level playbooks (site-common, sre-toolchain)
+playbooks/            # site-common, sre-toolchain, local-inference, redfish-oob
 roles/                # Custom roles (see table above)
 group_vars/all.yml    # Global group variables
 docs/                 # Compliance controls catalog + ADRs
@@ -131,6 +149,9 @@ lint rules). Each pass produces an ADR under [`docs/`](docs/):
 | [ADR-002](docs/ADR-002-sre-toolchain-supply-chain.md) | 2026-05-30 | `sre_toolchain` supply-chain hardening — strict checksum default, optional cosign signatures, optional tag pinning, evidence manifest |
 | [ADR-003](docs/ADR-003-runtime-correctness-and-cis-baseline.md) | 2026-05-30 | Runtime-correctness fixes (auditd restart, role order, fail2ban/rsyslog) and CIS baseline extension; pam_faillock via pam-config profiles |
 | [ADR-004](docs/ADR-004-ubuntu-2604-dual-support.md) | 2026-05-30 | Ubuntu 24.04 + 26.04 (kernel 7.0) dual-support; interim "CIS 24.04 + KSPP/kernel-7.0 delta" benchmark stance; kernel-7.0 sysctl review |
+| [ADR-005](docs/ADR-005-out-of-band-redfish.md) | 2026-05-31 | Out-of-band (BMC) management via Redfish — *Proposed/aspirational* (no BMC hardware in the fleet yet); the `redfish` role + `playbooks/redfish-oob.yml` |
+| [ADR-006](docs/ADR-006-ai-in-ci-local-inference.md) | 2026-05-31 | AI-in-CI advisory compliance review via **local** inference — *Proposed/dormant* until a local endpoint is configured; `scripts/ai-compliance-review.py` |
+| [ADR-007](docs/ADR-007-compliance-posture-export.md) | 2026-05-31 | Compliance posture export as the fleet → MCP bridge — *Accepted*; `scripts/export-compliance-posture.py` emits versioned posture JSON |
 
 Static analysis is enforced on every push and pull request by
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
