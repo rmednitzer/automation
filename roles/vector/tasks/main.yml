@@ -41,52 +41,76 @@
   loop_control:
     label: "{{ item | basename }}"
   become: true
-  register: vector_key_downloads
 
-- name: Stat the dearmored apt keyring
-  ansible.builtin.stat:
-    path: "{{ vector_apt_keyring }}"
-  register: vector_keyring_stat
-  become: true
-
-# Dearmor ALL fetched keys into one signed-by keyring (so metadata signed by any
-# active key during a rotation verifies), refreshing whenever a key changes or
-# the keyring is missing — not a one-time creates:, which would keep apt
-# trusting a stale keyring after a rotation.
-- name: Dearmor the Datadog keys into the apt keyring
+# Build the signed-by keyring from ONLY the current key files (not a glob, which
+# could absorb a stale/unmanaged file) into a STAGING copy every run, so adding
+# OR removing a key from vector_apt_key_urls is reflected. dearmor is a
+# deterministic format conversion, so on a converged host the staging copy is
+# byte-identical to the live keyring and nothing changes.
+- name: Build the Datadog signing keyring (staging)
   ansible.builtin.shell:
-    cmd: "set -o pipefail; cat /usr/share/keyrings/vector-datadog-*.asc | gpg --batch --yes --dearmor -o {{ vector_apt_keyring }}"
+    cmd: "set -o pipefail; cat {{ vector_key_files }} | gpg --batch --yes --dearmor -o {{ vector_apt_keyring }}.staging"
     executable: /bin/bash
+  vars:
+    vector_key_files: "{{ vector_apt_key_urls | map('basename') | map('regex_replace', '^', '/usr/share/keyrings/vector-datadog-') | map('regex_replace', '$', '.asc') | join(' ') }}"
   become: true
-  when: vector_key_downloads is changed or not vector_keyring_stat.stat.exists
+  changed_when: false
+
+- name: Read the staging keyring fingerprints
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail;
+      gpg --show-keys --with-colons {{ vector_apt_keyring }}.staging
+      | awk -F: '/^fpr:/ { print $10 }'
+    executable: /bin/bash
+  register: vector_staging_fprs
+  changed_when: false
+  become: true
+
+# Optional supply-chain pin, asserted on the STAGING keyring BEFORE it is
+# installed — so a failed pin never leaves an unexpected key in the live
+# keyring. Honours the superseded singular var vector_apt_key_fingerprint (if an
+# operator still sets it from the previous role API) so the rename does not
+# silently drop a configured pin.
+- name: Assert the staging keyring holds only pinned fingerprints
+  ansible.builtin.assert:
+    that:
+      - (vector_staging_fprs.stdout_lines | map('upper') | list | reject('in', vector_effective_key_fingerprints | map('replace', ' ', '') | map('upper') | list) | list | length) == 0
+    fail_msg: >-
+      The Datadog keyring contains a fingerprint not in the pinned set
+      ({{ vector_staging_fprs.stdout_lines }}). Refusing to trust the repository.
+    quiet: true
+  vars:
+    vector_effective_key_fingerprints: >-
+      {{ vector_apt_key_fingerprints if (vector_apt_key_fingerprints | length > 0)
+         else ([vector_apt_key_fingerprint]
+               if (vector_apt_key_fingerprint | default('') | length > 0) else []) }}
+  when: vector_effective_key_fingerprints | length > 0
+
+# Install the verified staging keyring atomically, ONLY when it differs from the
+# live one (cmp rc != 0 also covers a missing live keyring). A removed key thus
+# stops being trusted, and re-runs are no-ops.
+- name: Detect whether the live keyring differs from the verified staging copy
+  ansible.builtin.command:
+    cmd: "cmp -s {{ vector_apt_keyring }} {{ vector_apt_keyring }}.staging"
+  register: vector_keyring_cmp
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Atomically install the verified keyring when it changed
+  ansible.builtin.command:
+    cmd: "mv -f {{ vector_apt_keyring }}.staging {{ vector_apt_keyring }}"
+  become: true
+  when: vector_keyring_cmp.rc != 0
   changed_when: true
 
-# Optional supply-chain pin: after dearmoring (but before apt is configured to
-# use the keyring) assert the keyring holds ONLY pinned fingerprints, so an
-# unexpected key is never trusted. (Only when vector_apt_key_fingerprints set.)
-- name: Verify the dearmored keyring fingerprints (when pinned)
-  when: vector_apt_key_fingerprints | length > 0
+- name: Remove the staging keyring when unchanged
+  ansible.builtin.file:
+    path: "{{ vector_apt_keyring }}.staging"
+    state: absent
   become: true
-  block:
-    - name: Read the keyring fingerprints
-      ansible.builtin.shell:
-        cmd: >-
-          set -o pipefail;
-          gpg --show-keys --with-colons {{ vector_apt_keyring }}
-          | awk -F: '/^fpr:/ { print $10 }'
-        executable: /bin/bash
-      register: vector_keyring_fprs
-      changed_when: false
-
-    - name: Assert the keyring holds only pinned fingerprints
-      ansible.builtin.assert:
-        that:
-          - (vector_keyring_fprs.stdout_lines | map('upper') | list | reject('in', vector_apt_key_fingerprints | map('replace', ' ', '') | map('upper') | list) | list | length) == 0
-        fail_msg: >-
-          The Datadog keyring contains a fingerprint not in
-          vector_apt_key_fingerprints ({{ vector_keyring_fprs.stdout_lines }}).
-          Refusing to trust the repository.
-        quiet: true
+  changed_when: false
 
 - name: Ensure the apt keyring is world-readable
   ansible.builtin.file:
