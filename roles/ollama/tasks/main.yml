@@ -23,9 +23,11 @@
              and not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
                       and (ansible_virtualization_role | default('host')) == 'guest') }}
 
+    # .get() returns '' (not a template error) for an unsupported arch, so the
+    # assert below produces the intended friendly failure.
     - name: Resolve the release architecture
       ansible.builtin.set_fact:
-        ollama_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture | default('x86_64')] | default('') }}"
+        ollama_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(ansible_architecture | default('x86_64'), '') }}"
 
     - name: Fail on an unsupported architecture
       ansible.builtin.assert:
@@ -83,8 +85,13 @@
       failed_when: false
       become: true
 
+    # Compare the exact semver (not a substring, so 0.5.7 != 0.5.70).
+    - name: Record the installed Ollama version
+      ansible.builtin.set_fact:
+        ollama_installed_version: "{{ ollama_installed.stdout | default('') | regex_search('[0-9]+\\.[0-9]+\\.[0-9]+') | default('', true) }}"
+
     - name: Install the pinned Ollama release
-      when: ollama_version not in (ollama_installed.stdout | default(''))
+      when: ollama_installed_version != (ollama_version | regex_replace('^v', ''))
       become: true
       block:
         - name: Download the pinned Ollama release (checksum-verified)
@@ -111,6 +118,18 @@
             state: absent
 
     # --- hardened service ----------------------------------------------------
+    # Only put the service user in GPU groups that actually exist, else systemd
+    # fails the unit at credential setup on a CPU-only host (breaking the
+    # documented CPU fallback).
+    - name: Load the target group database
+      ansible.builtin.getent:
+        database: group
+      become: true
+
+    - name: Select only GPU groups present on this host
+      ansible.builtin.set_fact:
+        ollama_effective_gpu_groups: "{{ ollama_gpu_groups | select('in', ansible_facts.getent_group.keys() | list) | list }}"
+
     - name: Deploy the Ollama systemd unit
       ansible.builtin.template:
         src: ollama.service.j2
@@ -131,6 +150,11 @@
       when: ollama_runtime_managed | bool
 
     # --- optional model pulls ------------------------------------------------
+    # Apply any pending unit restart BEFORE talking to the daemon, so model
+    # operations reach the current host/port/config, not the old daemon (Codex).
+    - name: Flush handlers so model operations use the running config
+      ansible.builtin.meta: flush_handlers
+
     - name: List already-pulled models
       ansible.builtin.command:
         cmd: "{{ ollama_install_prefix }}/bin/ollama list"
@@ -139,6 +163,15 @@
       register: ollama_model_list
       changed_when: false
       become: true
+      when:
+        - ollama_runtime_managed | bool
+        - ollama_models | length > 0
+
+    # First column of `ollama list` is the model NAME; match whole names so
+    # llama3.1:8b doesn't count llama3.1:8b-instruct as present.
+    - name: Record already-pulled model names
+      ansible.builtin.set_fact:
+        ollama_present_models: "{{ ollama_model_list.stdout_lines | default([]) | map('regex_search', '^\\S+') | select('string') | list }}"
       when:
         - ollama_runtime_managed | bool
         - ollama_models | length > 0
@@ -155,4 +188,4 @@
       become: true
       when:
         - ollama_runtime_managed | bool
-        - item not in (ollama_model_list.stdout | default(''))
+        - item not in (ollama_present_models | default([]))

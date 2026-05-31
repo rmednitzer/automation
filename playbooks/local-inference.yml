@@ -7,7 +7,7 @@
 #   ansible-playbook -i inventories/<env>/hosts playbooks/local-inference.yml
 - name: Provision local LLM inference (Ollama)
   hosts: inference_hosts
-  become: true
+  # No play-level become — the ollama role escalates per task (repo convention).
   # Running this playbook is the intent to provision inference; the role still
   # asserts a pinned version + checksum.
   vars:
