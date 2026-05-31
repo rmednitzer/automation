@@ -1,6 +1,20 @@
 ---
 # Fail2Ban role for Ubuntu 24.04/26.04 LTS
 
+# fail2ban enforces bans through the host firewall (netfilter). Inside a
+# container GUEST it has no NET_ADMIN over the host's netfilter, so starting
+# the daemon (its jails install firewall rules on start) fails — the host owns
+# perimeter banning. Compute the guard once (same guest check as the auditd/
+# log_forwarding roles): skip only when this host is a container *guest*; a
+# container HOST (role 'host') owns the real firewall and must manage it.
+# fail2ban is still installed, the jail config deployed, and `fail2ban-client
+# -t` still validates it (config-only) — only the daemon start/restart is gated.
+- name: Determine whether to manage the fail2ban runtime
+  ansible.builtin.set_fact:
+    fail2ban_runtime_managed: >-
+      {{ not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+              and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 - name: Install fail2ban
   ansible.builtin.apt:
     name: fail2ban
@@ -38,3 +52,7 @@
     state: started
     enabled: true
   become: true
+  # Skipped in container guests (fail2ban_runtime_managed): the daemon installs
+  # netfilter rules on start, which need host NET_ADMIN. Install + jail config +
+  # `-t` validation above still run, so a container converge exercises them.
+  when: fail2ban_runtime_managed

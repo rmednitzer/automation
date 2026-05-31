@@ -15,6 +15,15 @@ Time synchronisation via `chrony` for Ubuntu 24.04 LTS.
   tolerates the brief race between `systemctl start chrony` and
   responsiveness
 
+## Container guests
+
+On a container **guest** (a container `ansible_virtualization_type` with
+`ansible_virtualization_role == guest`) the system clock belongs to the host
+and `chronyd` cannot step it. The role still installs `chrony` and deploys its
+config (config-as-code) but **skips starting/verifying the daemon** and the
+restart handler (`ntp_runtime_managed`). A container *host* manages time
+normally.
+
 ## Key variables
 
 | Variable | Default | Description |

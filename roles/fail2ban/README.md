@@ -14,6 +14,14 @@ Intrusion prevention via Fail2Ban for Ubuntu 24.04 LTS.
   default — POL-002 P2 severity
 - Supports custom jails and optional email notifications
 
+## Container guests
+
+On a container **guest** fail2ban cannot install netfilter ban rules. The role
+still installs the package, deploys `jail.local`, and validates it with
+`fail2ban-client -t`, but **skips starting the daemon** and the restart handler
+(`fail2ban_runtime_managed`). The host owns perimeter banning; a container
+*host* runs the daemon normally.
+
 ## Key variables
 
 | Variable | Default | Description |

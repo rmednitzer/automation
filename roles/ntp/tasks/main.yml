@@ -1,6 +1,20 @@
 ---
 # NTP role - Chrony time synchronization for Ubuntu 24.04/26.04 LTS
 
+# The system clock is host-global. Inside a container GUEST chronyd cannot step
+# the clock (no CAP_SYS_TIME) and starting/verifying the daemon fails or is
+# meaningless — the host owns time sync. Compute the guard once, the same guest
+# check the auditd/log_forwarding roles use: skip only when this host is a
+# container *guest* (a container virtualization type AND role 'guest'); a
+# container HOST (role 'host') still owns the real clock and must manage it.
+# chrony is still installed and its config deployed (config-as-code) — only the
+# runtime steps below are gated.
+- name: Determine whether to manage the chrony runtime (ntp)
+  ansible.builtin.set_fact:
+    ntp_runtime_managed: >-
+      {{ not ((ansible_virtualization_type | default('')) in ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+              and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 - name: Remove systemd-timesyncd if present
   ansible.builtin.apt:
     name: systemd-timesyncd
@@ -52,6 +66,9 @@
     state: started
     enabled: true
   become: true
+  # Skipped in container guests (ntp_runtime_managed): chronyd cannot own the
+  # host clock there. chrony + its config are still installed/deployed above.
+  when: ntp_runtime_managed
 
 - name: Verify time synchronization status
   ansible.builtin.command:
@@ -63,7 +80,9 @@
   delay: 3
   until: ntp_tracking.rc == 0
   become: true
+  when: ntp_runtime_managed
 
 - name: Display NTP sync status
   ansible.builtin.debug:
     msg: "{{ ntp_tracking.stdout_lines | default(['chrony not yet responding']) }}"
+  when: ntp_runtime_managed

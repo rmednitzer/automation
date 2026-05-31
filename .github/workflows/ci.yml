@@ -278,3 +278,26 @@ jobs:
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
         env:
           SKIP: yamllint,ansible-lint
+
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      # The gitleaks pre-commit hook scans only STAGED changes (pass_filenames
+      # is false), so it is a no-op in a clean CI checkout. This job is the real
+      # server-side enforcement: a full working-tree scan via `gitleaks dir`.
+      # The vendored Galaxy collections/ are gitignored (installed separately,
+      # not committed) and excluded via .gitleaks.toml. Pinned by immutable
+      # image digest, matching the action SHA-pins above; the digest is gitleaks
+      # v8.30.1 (the same version as the pre-commit hook and companion repos).
+      # Bump the digest and the version comment together.
+      - name: Run gitleaks (full working-tree scan)
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/repo" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            dir /repo --redact --no-banner # gitleaks v8.30.1
