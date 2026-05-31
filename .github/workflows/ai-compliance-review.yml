@@ -1,0 +1,62 @@
+---
+name: AI Compliance Review
+
+# Advisory, AI-assisted compliance review of a PR's role headers vs. the control
+# catalog, run on a LOCAL inference endpoint so diffs never leave the estate
+# (POL-004 / ADR-006). Non-blocking; the deterministic compliance validator in
+# the CI workflow remains the authoritative gate.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "roles/**"
+      - "playbooks/**"
+      - "docs/compliance-controls.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ai-review:
+    name: AI compliance review (advisory)
+    # Runs only when BOTH a local inference endpoint AND an explicit runner are
+    # configured (repository/org variables). The runner has no hosted fallback:
+    # set it to a self-hosted runner with access to the endpoint so review
+    # traffic stays on-prem (ADR-006). Dormant — and never blocking — otherwise.
+    if: ${{ vars.AI_REVIEW_OLLAMA_ENDPOINT != '' && vars.AI_REVIEW_RUNNER != '' }}
+    runs-on: ${{ vars.AI_REVIEW_RUNNER }}
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Run advisory AI compliance review (base-ref script, local inference)
+        continue-on-error: true
+        env:
+          OLLAMA_ENDPOINT: ${{ vars.AI_REVIEW_OLLAMA_ENDPOINT }}
+          OLLAMA_MODEL: ${{ vars.AI_REVIEW_OLLAMA_MODEL || 'llama3.1:8b' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # Execute the script from the BASE ref (the trusted target branch), never
+        # the PR checkout, so PR-controlled code can't run on the self-hosted /
+        # on-prem runner. The PR's files are only read as data for the review.
+        run: |
+          src="${RUNNER_TEMP}/ai-compliance-review.py"
+          if git show "${BASE_SHA}:scripts/ai-compliance-review.py" > "${src}" 2>/dev/null; then
+            python3 "${src}"
+          else
+            echo "_AI compliance review skipped: base-ref script not found (advisory)._" >> "${GITHUB_STEP_SUMMARY}"
+          fi
