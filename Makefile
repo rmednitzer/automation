@@ -45,6 +45,9 @@ syntax-check:  ## Run `ansible-playbook --syntax-check` on every playbook.
 validate-compliance:  ## Schema-check docs/compliance-controls.yml + verify role refs.
 	python3 scripts/validate-compliance-controls.py
 
+export-compliance:  ## Export the fleet compliance posture as JSON (fleet -> MCP; ADR-007).
+	python3 scripts/export-compliance-posture.py
+
 check: lint syntax-check validate-compliance  ## Lint + syntax-check + compliance schema.
 
 molecule-deps:  ## Install Molecule + the Docker driver.

@@ -112,6 +112,9 @@ jobs:
       - name: Validate schema and role references
         run: python3 scripts/validate-compliance-controls.py
 
+      - name: Export the compliance posture (smoke test — must be valid JSON)
+        run: python3 scripts/export-compliance-posture.py | python3 -c "import json, sys; json.load(sys.stdin)"
+
   vault-example:
     name: Vault worked example decrypts
     runs-on: ubuntu-latest
