@@ -254,19 +254,24 @@ def validate_derived_indexes(controls: dict, policies: dict) -> None:
 
     These indexes are convenience views that duplicate each control/policy's
     role coverage, so they drift silently when a role is added (they had fallen
-    11 roles behind before this check existed). Every CTL-/POL- row's role set
-    must equal the canonical compliance-controls.yml role set. A missing index
-    file is fine (it is optional); a present row that disagrees fails the build.
+    11 roles behind before this check existed). Two drift modes are caught:
+    (a) a present row whose role set differs from the canonical
+    compliance-controls.yml set, and (b) a YAML id of the file's prefix that has
+    NO row at all (omission — iterating rows alone would miss it). A missing
+    index file is fine (it is optional).
     """
     combined = {**controls, **policies}
-    for _prefix, path in DERIVED_INDEX_FILES.items():
+    for prefix, path in DERIVED_INDEX_FILES.items():
         if not path.is_file():
             continue
+        expected_ids = {eid for eid in combined if eid.startswith(f"{prefix}-")}
+        seen_ids: set[str] = set()
         for line in path.read_text(encoding="utf-8").splitlines():
             match = DERIVED_INDEX_ROW_RE.match(line)
             if not match:
                 continue
             eid, roles_cell = match.group(1), match.group(2)
+            seen_ids.add(eid)
             if eid not in combined:
                 fail(
                     f"derived-index: {path.relative_to(REPO_ROOT)} lists {eid}, "
@@ -291,6 +296,12 @@ def validate_derived_indexes(controls: dict, policies: dict) -> None:
                     f"derived-index: {path.relative_to(REPO_ROOT)} row {eid} role "
                     f"list is out of sync with compliance-controls.yml ({detail})"
                 )
+        missing_rows = sorted(expected_ids - seen_ids)
+        if missing_rows:
+            fail(
+                f"derived-index: {path.relative_to(REPO_ROOT)} is missing a row "
+                f"for {missing_rows} (present in compliance-controls.yml)"
+            )
 
 
 def validate_against_schema(data: object) -> str:
