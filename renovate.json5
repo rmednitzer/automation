@@ -32,8 +32,9 @@
       groupName: 'pre-commit hooks',
     },
     {
-      description: 'Group Ansible Galaxy collection and role requirement updates.',
+      description: 'Group non-major Ansible Galaxy collection and role requirement updates.',
       matchManagers: ['ansible-galaxy'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
       groupName: 'ansible galaxy requirements',
     },
   ],
