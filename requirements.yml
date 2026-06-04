@@ -6,8 +6,8 @@
 #
 # Versions are pinned exactly so the resolved set is deterministic and
 # reproducible across local and CI runs (ADR-001 F4.2). Renovate's
-# ansible-galaxy manager proposes minor and patch collection and role
-# updates; review them against upstream release notes before merging.
+# ansible-galaxy manager proposes collection and role updates (non-major
+# grouped, majors as separate PRs); review against upstream release notes.
 #
 # A CycloneDX SBOM of the resolved set is generated in CI by
 # `scripts/galaxy-sbom.py` and attached as a workflow artifact for
