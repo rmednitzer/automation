@@ -32,7 +32,14 @@
 
     - name: Decode the drop-in for assertions
       ansible.builtin.set_fact:
-        common_sysctl_text: "{{ common_sysctl_content.content | b64decode }}"
+        # Normalize 'key = value' / 'key=value' to a single form: the file is
+        # written by ansible.posix.sysctl WITHOUT spaces around '=', while
+        # these assertions were authored with spaces (surfaced by the first
+        # live Docker run, LIMITATIONS L2). Matching on the normalized text
+        # keeps every check independent of whitespace style.
+        common_sysctl_text: >-
+          {{ common_sysctl_content.content | b64decode
+             | regex_replace('[ \t]*=[ \t]*', '=') }}
 
     # protected_fifos / protected_regular are present on every supported
     # kernel (>= 4.19), so they live in the always-present main set and are
@@ -43,8 +50,8 @@
     - name: Assert the always-present KSPP / CIS sysctls are in the drop-in
       ansible.builtin.assert:
         that:
-          - "'fs.protected_fifos = 2' in common_sysctl_text"
-          - "'fs.protected_regular = 2' in common_sysctl_text"
+          - "'fs.protected_fifos=2' in common_sysctl_text"
+          - "'fs.protected_regular=2' in common_sysctl_text"
         fail_msg: >-
           A kernel-7.0 / KSPP sysctl addition is missing from
           /etc/sysctl.d/90-ansible.conf (protected_fifos / protected_regular).
@@ -52,10 +59,33 @@
     - name: Assert the overridable kernel-hardening sysctls are present
       ansible.builtin.assert:
         that:
-          - "'kernel.kptr_restrict = 2' in common_sysctl_text"
-          - "'kernel.dmesg_restrict = 1' in common_sysctl_text"
-          - "'kernel.yama.ptrace_scope = 2' in common_sysctl_text"
+          - "'kernel.kptr_restrict=2' in common_sysctl_text"
+          - "'kernel.dmesg_restrict=1' in common_sysctl_text"
         fail_msg: "an expected kernel-hardening sysctl is missing from the drop-in"
+
+    # kernel.yama.ptrace_scope only exists where the Yama LSM is enabled, so
+    # it is verified with the same present/absent split as the optional knobs
+    # below (the role probe-gates it in kernel_hardening.yml).
+    - name: Probe the Yama ptrace_scope path
+      ansible.builtin.stat:
+        path: /proc/sys/kernel/yama/ptrace_scope
+      register: common_verify_ptrace_path
+
+    - name: Assert ptrace_scope was written when Yama is present
+      ansible.builtin.assert:
+        that:
+          - "'kernel.yama.ptrace_scope=2' in common_sysctl_text"
+        fail_msg: "kernel.yama.ptrace_scope=2 missing from the drop-in on a Yama-enabled kernel"
+      when: common_verify_ptrace_path.stat.exists
+
+    - name: Assert ptrace_scope was skipped when Yama is absent
+      ansible.builtin.assert:
+        that:
+          - "'kernel.yama.ptrace_scope' not in common_sysctl_text"
+        fail_msg: >-
+          kernel.yama.ptrace_scope written to the drop-in on a kernel without
+          Yama — a stale line that could break a later reload.
+      when: not common_verify_ptrace_path.stat.exists
 
     # Optional knobs are path-gated: assert that for every key whose
     # /proc/sys path exists on THIS kernel, the drop-in contains the key
@@ -71,7 +101,7 @@
     - name: Assert each present optional knob was written to the drop-in
       ansible.builtin.assert:
         that:
-          - (item.item.key ~ ' =') in common_sysctl_text
+          - (item.item.key ~ '=') in common_sysctl_text
         fail_msg: >-
           optional sysctl {{ item.item.key }} exists on this kernel
           (/proc/sys path present) but was not written to the drop-in.
@@ -86,7 +116,7 @@
     - name: Assert each absent optional knob is NOT in the drop-in
       ansible.builtin.assert:
         that:
-          - (item.item.key ~ ' =') not in common_sysctl_text
+          - (item.item.key ~ '=') not in common_sysctl_text
         fail_msg: >-
           optional sysctl {{ item.item.key }} is absent on this kernel
           (/proc/sys path missing) but a line for it was written to the
@@ -99,5 +129,5 @@
     - name: Assert ASLR sysctl drop-in value (kernel_hardening.yml)
       ansible.builtin.assert:
         that:
-          - "'kernel.randomize_va_space = 2' in common_sysctl_text"
+          - "'kernel.randomize_va_space=2' in common_sysctl_text"
         fail_msg: "kernel.randomize_va_space=2 (full ASLR) missing from drop-in"

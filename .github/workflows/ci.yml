@@ -8,10 +8,9 @@ on:
   pull_request:
     branches:
       - main
-  # Manual trigger for the Molecule matrix (see the `molecule` job): it runs
-  # systemd-in-Docker and exercises role steps that are not container-safe
-  # (auditd rule loading, sshd restart, read-only sysctls), so it is run
-  # on-demand against a Docker host rather than on every push/PR.
+  # Manual trigger, kept for re-running the full workflow (including the
+  # Molecule matrix, which now also gates on push/PR — LIMITATIONS L2
+  # closure) on demand.
   workflow_dispatch:
 
 permissions:
@@ -199,18 +198,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     timeout-minutes: 45
-    # On-demand only: these scenarios run systemd-in-Docker (geerlingguy
-    # images) and exercise role steps that are NOT container-safe — auditd
-    # rule loading (the audit subsystem is not namespaced), sshd restart, and
-    # writing read-only/namespaced sysctls — so they cannot pass in a plain
-    # container and could not be validated in the authoring environment.
-    # Rather than show a perpetual red on every PR, the matrix runs only on a
-    # manual `workflow_dispatch` (against a Docker host you control); converge
-    # is the real gate there. To make it gate on push/PR, the roles first need
-    # container-awareness (skip the non-container-safe steps under
-    # ansible_virtualization_type), validated on a Docker host. See
-    # LIMITATIONS.md (L2/L3/L5), ADR-004, and roles/users/README.md.
-    if: github.event_name == 'workflow_dispatch'
+    # Gates on push/PR since the first live Docker run (LIMITATIONS L2
+    # closure): the four baseline scenarios passed full `molecule test`
+    # (converge + idempotence + verify, noble + resolute) once the roles
+    # gained the container-awareness fixes that run surfaced — sysctl
+    # live-reload guarded by common_sysctl_reload, probe-gated
+    # kernel-dependent knobs, the users PAM ordering fix, and scenario
+    # prepare steps. The sre_toolchain scenario stays OUT of this matrix
+    # (needs GitHub egress + ideally a token; run `make molecule-sre`
+    # on-demand, see LIMITATIONS L5).
     strategy:
       fail-fast: false
       matrix:

@@ -1,0 +1,21 @@
+---
+# Prepare: reset the PAM stack to a pristine pam-auth-update baseline.
+#
+# The geerlingguy/docker-*-ansible images ship /etc/pam.d/common-* files that
+# differ from pam-auth-update's recorded state, so a plain (non --force)
+# `pam-auth-update` — which is all the users role runs; --force on a real host
+# could clobber an admin's local PAM edits — refuses with "Local modifications
+# to /etc/pam.d/common-*, not updating" and exits 0. The role's own POL-001
+# assert then fails (correctly: faillock.conf would be inert). Regenerating
+# the baseline here represents the clean host the role targets. Surfaced by
+# the first live Docker run of this scenario (LIMITATIONS L2).
+- name: Prepare
+  hosts: all
+  become: true
+  tasks:
+    - name: Reset /etc/pam.d/common-* to the pam-auth-update baseline
+      ansible.builtin.command:
+        cmd: pam-auth-update --force --package
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      changed_when: true

@@ -1,10 +1,10 @@
 ---
 # Molecule scenario for the `sre_toolchain` role (LIMITATIONS.md L5).
 #
-# NOTE: requires Docker, unavailable in the current CI sandbox, so this
-# scenario is authored and YAML/lint-validated but has NOT been executed
-# here. It also needs NETWORK EGRESS to the GitHub API + release CDN. Run
-# on a Docker-enabled host with outbound HTTPS:
+# Requires Docker AND network egress to the GitHub API + release CDN
+# (ideally with SRE_TOOLCHAIN_GITHUB_TOKEN to dodge the 60-req/hour
+# unauthenticated cap), which is why it stays OUT of the CI molecule matrix
+# (LIMITATIONS L5). Run on a Docker-enabled host with outbound HTTPS:
 #
 #   pip install molecule molecule-plugins[docker] docker
 #   export SRE_TOOLCHAIN_GITHUB_TOKEN=ghp_xxx   # avoids 60-req/hour limit
@@ -61,6 +61,12 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    # Resolve the role under test from the repo's roles/ tree. Surfaced by the
+    # first live Docker run (LIMITATIONS L2): molecule no longer injects the
+    # role's parent directory into the roles path, so include_role fails with
+    # "role not found" without this.
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
   config_options:
     defaults:
       interpreter_python: auto_silent

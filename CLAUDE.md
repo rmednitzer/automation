@@ -277,9 +277,10 @@ ansible-vault view <file>
   enforced)
 - **yamllint** (project overrides in `.yamllint`)
 - **molecule** (role testing — `molecule/default` scenarios for `users`,
-  `ssh_hardening`, `auditd`, `common`; run on-demand via the CI
-  `workflow_dispatch` matrix since they need systemd-in-Docker, see
-  LIMITATIONS L2)
+  `ssh_hardening`, `auditd`, `common`, dual-OS noble + resolute; the CI
+  matrix **gates on push/PR** since the L2 closure. The egress-heavy
+  `sre_toolchain` scenario stays on-demand via `make molecule-sre`,
+  LIMITATIONS L5)
 
 ## Workflow
 
