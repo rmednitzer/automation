@@ -1,11 +1,19 @@
 ---
 # Common role handlers
 
+# cron is present on a stock Ubuntu server but genuinely optional on minimal
+# hosts (systemd-timer-only installs, containers; surfaced by the first live
+# Molecule run, LIMITATIONS L2). Tolerate exactly the service-not-found case
+# — a real restart failure of an installed cron stays fatal.
 - name: Restart cron
   ansible.builtin.systemd_service:
     name: cron
     state: restarted
   become: true
+  register: common_cron_restart
+  failed_when:
+    - common_cron_restart is failed
+    - "'Could not find the requested service' not in (common_cron_restart.msg | default(''))"
 
 - name: Restart journald
   ansible.builtin.systemd_service:

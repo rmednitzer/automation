@@ -9,6 +9,56 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-06-10 **First live Molecule run — LIMITATIONS L2 closed; the CI
+  Molecule matrix now gates on push/PR.** All four baseline scenarios
+  (`users`, `ssh_hardening`, `auditd`, `common`) passed their first full
+  `molecule test` (converge + idempotence + verify) on a real Docker host,
+  dual-OS noble + resolute, after fixing what the live run surfaced:
+  - **`users` (CTL-001/POL-001 relevant): real PAM ordering bug, not
+    container noise.** The `pam_unix remember=` history edit ran *before*
+    `pam-auth-update --enable faillock…`; editing a managed `common-*` file
+    marks the stack locally modified, after which `pam-auth-update` refuses
+    (exit 0) and faillock is silently never wired — on ANY host, fleet
+    included. Caught by the role's own POL-001 assert; the `remember=` edit
+    now runs last. The scenario also gained a `prepare.yml` resetting the
+    geerlingguy images' pre-modified PAM baseline, and `libpam-pwquality`
+    installs with `update_cache` (empty container apt caches; same fix for
+    `openssh-server` in `ssh_hardening`).
+  - **`common`: container-aware sysctl live-reload.** New
+    `common_sysctl_reload` default (mirrors `auditd_runtime_managed`)
+    disables the `sysctl -p` whole-file reload inside containers, where
+    kernel-global keys (e.g. `net.core.rmem_max`) are read-only — the
+    persisted drop-in is still written and verified. On real hosts,
+    behaviour unchanged.
+  - **`common`: probe-gated kernel-dependent knobs.**
+    `kernel.unprivileged_userns_clone` (Ubuntu-only patch) and
+    `kernel.yama.ptrace_scope` (needs Yama) now use the same
+    probe-then-apply treatment as the optional sysctl map, replacing a
+    blanket `failed_when: false`; the drop-in prune whitelist is now
+    presence-aware so a stale key from an older kernel is pruned instead of
+    breaking a later reload.
+  - **`common`: minimal-host robustness.** `/etc/modprobe.d` ensured before
+    writing blacklists; systemd coredump config moved from `lineinfile` on
+    the (possibly absent) stock `coredump.conf` to a
+    `coredump.conf.d/99-ansible.conf` drop-in; sensitive-file permission
+    loop stat-gates optional files (`/etc/ssh/sshd_config`); the cron
+    restart handler tolerates exactly the service-not-found case.
+  - **`ssh_hardening`: `sshd -t` works pre-first-start.** The privilege-
+    separation directory (`/run/sshd`) is pre-created so config validation
+    does not depend on the service having started.
+  - **Scenarios:** `ANSIBLE_ROLES_PATH` set in every scenario's provisioner
+    (Molecule no longer injects the role's parent dir); the `common`
+    verifier's `key = value` assertions made whitespace-agnostic (the
+    drop-in is written as `key=value`) and its `ptrace_scope` check gated on
+    Yama presence — the absent-key "not in drop-in" assertions were passing
+    vacuously before.
+  - **CI:** the `molecule` matrix's `workflow_dispatch`-only condition is
+    removed — it gates on every push/PR (45-min timeout, `needs: lint`).
+    The egress-heavy `sre_toolchain` scenario stays out of the matrix
+    (LIMITATIONS L5; `make molecule-sre` on-demand). LIMITATIONS L3 updated
+    (idempotence now live-exercised), L7 unblocked (tag `0.1.0` after the
+    first green gating run on `main`).
+
 - 2026-05-31 **Docs polish — sync the derived compliance indexes and enforce
   it.** `docs/controls/README.md` and `docs/policies/README.md` are convenience
   views that mirror the role coverage in `docs/compliance-controls.yml`, but

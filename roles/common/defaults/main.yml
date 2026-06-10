@@ -198,6 +198,17 @@ common_kernel_unprivileged_bpf_disabled: 1
 common_kernel_randomize_va_space: 2
 common_kernel_ptrace_scope: 2
 
+# Whether sysctl tasks also live-reload the running kernel (`sysctl -p` on the
+# drop-in) after writing /etc/sysctl.d/90-ansible.conf. Auto-disables inside
+# containers, where kernel-global keys (e.g. net.core.rmem_max) are read-only
+# and any whole-file reload fails even though the persisted config is correct
+# (mirrors auditd_runtime_managed; surfaced by the first live Molecule run,
+# LIMITATIONS L2). On real hosts this stays true and behaviour is unchanged.
+common_sysctl_reload: >-
+  {{ not ((ansible_virtualization_type | default('')) in
+          ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn']
+          and (ansible_virtualization_role | default('host')) == 'guest') }}
+
 # The sysctl keys applied by tasks/kernel_hardening.yml (it writes them
 # individually, with per-key when/failed_when, into the SAME drop-in as
 # tasks/sysctl.yml). Listed here as data so sysctl.yml can treat the role's

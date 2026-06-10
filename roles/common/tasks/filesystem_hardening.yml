@@ -39,12 +39,15 @@
   become: true
   when: common_world_writable_dirs.stdout_lines | length > 0
 
-- name: Restrict permissions on sensitive files
-  ansible.builtin.file:
+# Stat first and tighten only files that exist: some entries are owned by
+# optional packages (/etc/ssh/sshd_config by openssh-server — installed by
+# the ssh_hardening role on fleet hosts, absent on a standalone/minimal
+# system; surfaced by the first live Molecule run, LIMITATIONS L2). A
+# missing file is not a finding for THIS task; the package that ships it
+# brings its own secure defaults when installed.
+- name: Stat the sensitive files to restrict
+  ansible.builtin.stat:
     path: "{{ item.path }}"
-    mode: "{{ item.mode }}"
-    owner: root
-    group: "{{ item.group | default('root') }}"
   loop:
     - path: /etc/shadow
       mode: "0640"
@@ -62,4 +65,16 @@
       mode: "0600"
   loop_control:
     label: "{{ item.path }}"
+  register: common_sensitive_files_stat
+  become: true
+
+- name: Restrict permissions on sensitive files
+  ansible.builtin.file:
+    path: "{{ item.item.path }}"
+    mode: "{{ item.item.mode }}"
+    owner: root
+    group: "{{ item.item.group | default('root') }}"
+  loop: "{{ common_sensitive_files_stat.results | selectattr('stat.exists') | list }}"
+  loop_control:
+    label: "{{ item.item.path }}"
   become: true

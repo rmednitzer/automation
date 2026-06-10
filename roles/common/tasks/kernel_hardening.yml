@@ -9,6 +9,19 @@
 # update common_kernel_hardening_sysctl_keys too, or sysctl.yml will prune the
 # new key (or fail to prune a removed one).
 
+# /etc/modprobe.d is shipped by the kmod package on a regular host, but
+# minimal images (containers; surfaced by the first live Molecule run,
+# LIMITATIONS L2) omit it — and ansible.builtin.copy does not create the
+# destination directory. Ensure it exists with the packaged owner/mode.
+- name: Ensure /etc/modprobe.d exists
+  ansible.builtin.file:
+    path: /etc/modprobe.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
 - name: Blacklist unnecessary kernel modules
   ansible.builtin.copy:
     dest: "/etc/modprobe.d/ansible-blacklist-{{ item }}.conf"
@@ -40,16 +53,35 @@
     name: fs.suid_dumpable
     value: "0"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
   when: common_disable_core_dumps
 
-- name: Disable core dumps in systemd
-  ansible.builtin.lineinfile:
-    path: /etc/systemd/coredump.conf
-    regexp: "^#?Storage="
-    line: "Storage=none"
+# Drop-in rather than lineinfile on /etc/systemd/coredump.conf: the stock
+# file is absent on minimal installs (surfaced by the first live Molecule
+# run, LIMITATIONS L2), drop-ins survive package upgrades, and this matches
+# the role's limits.d / sysctl.d drop-in style.
+- name: Ensure the coredump.conf.d drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/coredump.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: common_disable_core_dumps
+
+- name: Disable core dumps in systemd (coredump.conf drop-in)
+  ansible.builtin.copy:
+    dest: /etc/systemd/coredump.conf.d/99-ansible.conf
+    content: |
+      # Ansible managed
+      [Coredump]
+      Storage=none
+    owner: root
+    group: root
+    mode: "0644"
   become: true
   when: common_disable_core_dumps
 
@@ -58,7 +90,7 @@
     name: kernel.randomize_va_space
     value: "{{ common_kernel_randomize_va_space | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
 
@@ -67,7 +99,7 @@
     name: kernel.kptr_restrict
     value: "{{ common_kernel_kptr_restrict | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
 
@@ -76,7 +108,7 @@
     name: kernel.dmesg_restrict
     value: "{{ common_kernel_dmesg_restrict | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
 
@@ -85,30 +117,55 @@
     name: kernel.unprivileged_bpf_disabled
     value: "{{ common_kernel_unprivileged_bpf_disabled | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
 
-# kernel.unprivileged_userns_clone is a Debian/Ubuntu-only sysctl; mainline
-# kernels expose user.max_user_namespaces instead. On kernel 7.0 (26.04)
-# Ubuntu still carries the downstream knob, but keep failed_when:false so the
-# role does not abort if a future kernel drops it. Unprivileged user
-# namespaces remain a notable LPE surface (KSPP).
+# The two knobs below are KERNEL-DEPENDENT, so they get the same
+# probe-then-apply treatment as the optional map in tasks/sysctl.yml:
+# kernel.unprivileged_userns_clone is a Debian/Ubuntu-only patch (mainline
+# exposes user.max_user_namespaces instead), and kernel.yama.ptrace_scope
+# only exists where the Yama LSM is enabled. Probing replaces the previous
+# blanket failed_when:false on userns_clone — an absent key is skipped (and
+# kept out of the drop-in) instead of masking every failure; a kernel that
+# drops the knob re-converges cleanly. Surfaced by the first live Molecule
+# run (LIMITATIONS L2) on a host kernel that carries neither. Unprivileged
+# user namespaces remain a notable LPE surface (KSPP).
+- name: Probe the kernel-dependent hardening sysctls for a live /proc/sys path
+  ansible.builtin.stat:
+    path: "/proc/sys/{{ item | replace('.', '/') }}"
+  loop:
+    - kernel.unprivileged_userns_clone
+    - kernel.yama.ptrace_scope
+  loop_control:
+    label: "{{ item }}"
+  register: common_kernel_hardening_probe
+  become: true
+
+- name: Partition the kernel-dependent hardening keys into the present set
+  ansible.builtin.set_fact:
+    common_kernel_hardening_keys_present: >-
+      {{ common_kernel_hardening_probe.results
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+
 - name: Restrict unprivileged user namespaces
   ansible.posix.sysctl:
     name: kernel.unprivileged_userns_clone
     value: "0"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
-  failed_when: false
+  when: "'kernel.unprivileged_userns_clone' in common_kernel_hardening_keys_present"
 
 - name: Restrict ptrace scope
   ansible.posix.sysctl:
     name: kernel.yama.ptrace_scope
     value: "{{ common_kernel_ptrace_scope | string }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   become: true
+  when: "'kernel.yama.ptrace_scope' in common_kernel_hardening_keys_present"

@@ -48,6 +48,30 @@
          | map(attribute='item')
          | list }}
 
+# The kernel_hardening.yml keys share the drop-in (see the header) and are
+# kernel-dependent too (userns_clone is Ubuntu-only, yama.ptrace_scope needs
+# the Yama LSM). Probe them here as well so the prune whitelist below only
+# protects keys that exist on THIS kernel -- a stale line for a key this
+# kernel no longer (or never) carried is pruned instead of surviving to break
+# the whole-file reload. kernel_hardening.yml re-probes for its own apply
+# gating, keeping both files correct when run alone via tags.
+- name: Probe the kernel-hardening sysctl keys for a live /proc/sys path
+  ansible.builtin.stat:
+    path: "/proc/sys/{{ item | replace('.', '/') }}"
+  loop: "{{ common_kernel_hardening_sysctl_keys }}"
+  loop_control:
+    label: "{{ item }}"
+  register: common_sysctl_kh_probe
+  become: true
+
+- name: Partition the kernel-hardening keys into the present set
+  ansible.builtin.set_fact:
+    common_sysctl_kh_present: >-
+      {{ common_sysctl_kh_probe.results
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+
 # The role OWNS /etc/sysctl.d/90-ansible.conf, so it must end up containing
 # EXACTLY the keys the role currently manages-and-can-apply, and nothing else.
 # The managed-and-applicable set is the single source of truth: the map keys
@@ -73,12 +97,12 @@
 
 - name: Compute the stale keys to prune from the drop-in
   ansible.builtin.set_fact:
-    # keys-in-file - (present map keys + kernel_hardening keys) = stale keys.
+    # keys-in-file - (present map keys + PRESENT kernel_hardening keys) = stale.
     common_sysctl_stale_keys: >-
       {{ (common_sysctl_dropin_read.content | b64decode
           | regex_findall('(?m)^\s*([\w.\-]+)\s*='))
          | difference((common_sysctl_present | map(attribute='key') | list)
-                      + common_kernel_hardening_sysctl_keys)
+                      + common_sysctl_kh_present)
          if common_sysctl_dropin_stat.stat.exists else [] }}
 
 - name: Prune stale keys from the drop-in before reloading (no stale lines)
@@ -97,7 +121,7 @@
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/90-ansible.conf
-    reload: true
+    reload: "{{ common_sysctl_reload | bool }}"
     state: present
   loop: "{{ common_sysctl_present }}"
   loop_control:

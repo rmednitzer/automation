@@ -71,10 +71,12 @@ silent mis-wire fails the play rather than producing an unenforced or
 broken stack. The `users` Molecule scenario
 (`roles/users/molecule/default/`) runs in CI on real Ubuntu **24.04 and
 26.04** containers (ADR-004) and **asserts** that `pam_faillock.so` lands in
-the generated `common-auth`/`common-account` on each. (The scenario was
-authored but not executed in the implementation sandbox, which had no
-Docker — so the first green run is the CI gate; validate on a lab host with
-break-glass access before a fleet rollout.)
+the generated `common-auth`/`common-account` on each. (First executed live
+2026-06-10 — LIMITATIONS L2 closure. That run caught a real ordering bug:
+the `pam_unix remember=` edit ran *before* `pam-auth-update`, which then
+refused — exit 0 — to wire faillock on any host; the edit now runs last.
+Still validate on a lab host with break-glass access before a fleet
+rollout.)
 
 **Recovery (break-glass).** Keep a root console / cloud serial-console
 session, or a second already-authenticated session, open while applying

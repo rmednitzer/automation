@@ -5,6 +5,23 @@
   ansible.builtin.apt:
     name: openssh-server
     state: present
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+# sshd -t (the validate: below) refuses to run without the privilege-
+# separation directory, which is created at service start (tmpfiles.d) — so
+# validation fails on a host where sshd is installed but has not yet started
+# (fresh install before first boot, or a container where policy-rc.d blocks
+# the postinst service start; surfaced by the first live Molecule run,
+# LIMITATIONS L2). Pre-create it with the packaged owner/mode.
+- name: Ensure sshd privilege-separation directory exists (sshd -t needs it)
+  ansible.builtin.file:
+    path: /run/sshd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
   become: true
 
 - name: Deploy hardened sshd_config

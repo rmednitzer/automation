@@ -1,9 +1,9 @@
 ---
 # Molecule scenario for the `auditd` role.
 #
-# NOTE: requires Docker, unavailable in the current CI sandbox, so this
-# scenario is authored and YAML/lint-validated but has NOT been executed
-# here (LIMITATIONS.md L2/L3). Run on a Docker-enabled host:
+# Requires Docker. First executed live 2026-06-10 (LIMITATIONS L2 closure):
+# full `molecule test` (converge + idempotence + verify) green on noble +
+# resolute; gates in CI on push/PR. Run locally:
 #
 #   pip install molecule molecule-plugins[docker] docker
 #   cd roles/auditd && molecule test
@@ -53,6 +53,12 @@ platforms:
 
 provisioner:
   name: ansible
+  env:
+    # Resolve the role under test from the repo's roles/ tree. Surfaced by the
+    # first live Docker run (LIMITATIONS L2): molecule no longer injects the
+    # role's parent directory into the roles path, so include_role fails with
+    # "role not found" without this.
+    ANSIBLE_ROLES_PATH: ${MOLECULE_PROJECT_DIRECTORY}/..
   config_options:
     defaults:
       interpreter_python: auto_silent
