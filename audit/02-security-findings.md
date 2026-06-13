@@ -14,7 +14,9 @@ that could be stronger**, where the secure *mechanism already exists and works*
 and the open posture is a deliberate, documented opt-in. None is fixed inline —
 each is either an intentional design choice that should not be silently
 overridden, or an untestable change in this environment (no Docker/Molecule).
-All are tracked in `BACKLOG.md`.
+The five actionable items (A-1..A-5) are tracked in `BACKLOG.md`; the single
+informational item (A-I1) is accepted by design and intentionally not
+backlogged.
 
 ## Coverage (this session)
 
