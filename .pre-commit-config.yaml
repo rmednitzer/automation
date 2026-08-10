@@ -29,13 +29,13 @@ repos:
         args: [-c, .yamllint]
 
   - repo: https://github.com/ansible/ansible-lint
-    rev: v26.4.0
+    rev: v26.6.0
     hooks:
       - id: ansible-lint
         files: \.(yaml|yml)$
 
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.6.1
+    rev: 3.8.0
     hooks:
       - id: editorconfig-checker
         alias: ec
