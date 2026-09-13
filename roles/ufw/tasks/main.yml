@@ -69,7 +69,7 @@
     - name: Apply rate limiting on SSH
       community.general.ufw:
         rule: limit
-        port: "22"
+        port: "{{ ufw_ssh_port }}"
         proto: tcp
         comment: "SSH rate limit"
       become: true
