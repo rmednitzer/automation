@@ -9,6 +9,26 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+- 2026-09-13 **`ufw`: fix the SSH rate-limit rule's hardcoded port
+  (POL-001).** `roles/ufw/tasks/main.yml` rate-limited SSH on a literal
+  `port: "22"`, independent of any variable — unlike every other value in
+  the role. `ufw_rules` (the allow rule) was already overridable, but the
+  rate-limit rule was not: an operator who moved SSH to a non-standard
+  port (following the existing `ssh_port` cross-role-coupling warning in
+  `group_vars/all.yml`, ADR-001 F3.1) and updated `ufw_rules` accordingly
+  would still have the rate-limit rule guarding the old port 22 instead of
+  the port SSH actually listens on. Added `ufw_ssh_port` (default `"22"`)
+  and referenced it from the rate-limit task; documented the new coupling
+  point in `group_vars/all.yml`, `roles/ufw/README.md`, and the role's
+  `defaults/main.yml`. No change to the accepted F3.1 design (still
+  manually synced, not auto-derived from `ssh_port`). No CTL-/POL- ID
+  added; POL-001 (access control) reference unchanged. `make check`
+  passes: `0 failure(s), 0 warning(s)` (ansible-lint, production profile,
+  193 files); `yamllint -s .` clean; all four playbooks
+  `--syntax-check` clean; `validate-compliance-controls.py` unchanged
+  (`OK: 3 control(s), 5 policy(ies); roles cross-referenced against 22
+  role(s)`).
+
 - 2026-06-10 **First live Molecule run — LIMITATIONS L2 closed; the CI
   Molecule matrix now gates on push/PR.** All four baseline scenarios
   (`users`, `ssh_hardening`, `auditd`, `common`) passed their first full

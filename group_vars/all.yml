@@ -29,8 +29,10 @@ common_harden_tmp: true
 ssh_permit_root_login: "no"
 ssh_password_authentication: false
 # NOTE: ssh_port is consumed only by the ssh_hardening role. If you change
-# it, you MUST also update ufw_rules (below) and the fail2ban sshd jail
-# port, otherwise UFW (applied after SSH) will lock you out.
+# it, you MUST also update ufw_rules (below), ufw_ssh_port, and the
+# fail2ban sshd jail port, otherwise UFW (applied after SSH) will lock you
+# out and its SSH rate-limit rule will keep guarding the old port instead
+# of the one sshd actually listens on.
 # ssh_port: 22
 
 # --- UFW firewall role ---

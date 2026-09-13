@@ -27,6 +27,7 @@ manages it normally.
 | `ufw_default_outgoing` | `allow` | Default outgoing policy |
 | `ufw_rules` | SSH on port 22 | List of firewall rules |
 | `ufw_rate_limit_ssh` | `true` | Rate-limit SSH connections |
+| `ufw_ssh_port` | `"22"` | Port the SSH rate-limit rule applies to (see cross-role coupling note in `group_vars/all.yml`) |
 | `ufw_logging` | `on` | Enable UFW logging |
 | `ufw_raw_rules` | `[]` | Raw UFW rule strings |
 

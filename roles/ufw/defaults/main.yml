@@ -34,6 +34,12 @@ ufw_raw_rules: []
 
 # Rate limiting for SSH (limits connection attempts)
 ufw_rate_limit_ssh: true
+# Port the rate-limit rule above applies to. NOT derived from the
+# ssh_hardening role's `ssh_port` (cross-role coupling, deliberately not
+# auto-wired — see ADR-001 F3.1): if you change `ssh_port`, you MUST also
+# update this, `ufw_rules`, and the fail2ban sshd jail port, or the
+# rate-limit rule keeps guarding a port SSH no longer listens on.
+ufw_ssh_port: "22"
 
 # Enable UFW after configuration
 ufw_enabled: true
