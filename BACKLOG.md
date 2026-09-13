@@ -21,6 +21,12 @@ that resolves it and moving it to **Resolved**.
 | A-4 | Integrity-verify kubectx/kubens under `best-effort` checksum policy | [audit/02](audit/02-security-findings.md) | low | M | When `sre_toolchain_verify_signatures: true`, verify the asset against the cosign-attested release digest instead of installing unverified; otherwise keep the strict-policy skip. | platform/security |
 | A-5 | Tighten the Ollama temp-archive mode (`roles/ollama/tasks/main.yml:104`) | [audit/02](audit/02-security-findings.md) | low (nit) | S | Use `0600` (or a `0700` scratch dir, mirroring `sre_toolchain`). Pair with an `ollama` Molecule scenario so the change is test-covered (the reason it was not done inline this pass). | platform/SRE |
 
+### Tooling deprecations
+
+| Id | Item | Origin | Severity | Effort | Suggested approach | Owner |
+|----|------|--------|----------|--------|--------------------|-------|
+| A-6 | Migrate off `ansible.builtin.apt_repository` before ansible-core 2.25 removes it (`roles/vector/tasks/main.yml:124`, `roles/wazuh_agent/tasks/main.yml:98`) | 2026-09-12 audit pass — `ansible-playbook --syntax-check` emits a `DEPRECATION WARNING` for both tasks under the pinned `ansible-core==2.21.3` | low | M | Replace with `ansible.builtin.deb822_repository` (`types: [deb]`, `uris`, `suites`, `components`, `signed_by: <keyring path>`). Note the on-disk filename convention changes from `<name>.list` to `<name>.sources`, so the migration must also remove the stale `.list` file to avoid a duplicate/conflicting repo definition. Neither role has a Molecule scenario, so converge + idempotence need manual verification (or a scenario added first) before landing this — the reason it was not done inline this pass. | platform/SRE |
+
 ## Resolved
 
 _None yet (backlog opened 2026-06-13)._
