@@ -271,7 +271,11 @@ jobs:
       # yamllint and ansible-lint already run in the `lint` job above;
       # skip them here so this job stays fast and doesn't double-report.
       - name: Run hygiene hooks
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        # Run the pinned CLI directly: pre-commit/action calls an unpinned
+        # actions/cache internally and is incompatible with SHA enforcement.
+        run: |
+          python -m pip install -r requirements-dev.txt
+          pre-commit run --show-diff-on-failure --color=always --all-files
         env:
           SKIP: yamllint,ansible-lint
 
