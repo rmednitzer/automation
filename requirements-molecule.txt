@@ -1,0 +1,6 @@
+# Optional container-test tooling. Shared by CI and make molecule-deps.
+# Direct dependencies are pinned and updated through Renovate.
+-r requirements-dev.txt
+molecule==26.9.0
+molecule-plugins[docker]==26.9.28
+docker==7.2.0

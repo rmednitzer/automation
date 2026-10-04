@@ -51,7 +51,7 @@ export-compliance:  ## Export the fleet compliance posture as JSON (fleet -> MCP
 check: lint syntax-check validate-compliance  ## Lint + syntax-check + compliance schema.
 
 molecule-deps:  ## Install Molecule + the Docker driver.
-	pip install "molecule>=6" "molecule-plugins[docker]" docker
+	pip install -r requirements-molecule.txt
 
 molecule:  ## Run Molecule scenarios (requires Docker): users ssh_hardening auditd common.
 	@for role in $(MOLECULE_ROLES); do \
