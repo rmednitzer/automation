@@ -228,13 +228,14 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: requirements-dev.txt
+          cache-dependency-path: |
+            requirements-dev.txt
+            requirements-molecule.txt
 
       - name: Install Ansible, Molecule, and the Docker driver
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-          pip install "molecule>=6" "molecule-plugins[docker]" docker
+          pip install -r requirements-molecule.txt
 
       - name: Install Galaxy collections
         # ansible.cfg pins collections_path to the repo-root collections/ dir,
