@@ -3,6 +3,7 @@
 ## Repository-specific workflow
 
 Ansible configuration management and hardening. Read `CONTRIBUTING.md`, `LIMITATIONS.md`, relevant `docs/ADR-*.md`, role READMEs, and `docs/compliance-controls.yml`.
+
 - Roles belong in `roles/<snake_case>/` with defaults, tasks, metadata, README, and role-local files/templates; handlers when needed. Playbooks use hyphenated names in `playbooks/`; inventories isolate environments.
 - YAML: two spaces, `.yml`, document start, `true`/`false`. Use named tasks and FQCNs; prefer idempotent modules over shell; static imports versus dynamic includes intentionally. Scope privilege to tasks that need it.
 - Preserve CTL-/POL- role references and their catalog definitions. A mapping is evidence linkage, not legal compliance or benchmark conformance. Verify legal applicability and benchmark edition before making such claims.
@@ -129,6 +130,7 @@ product, edition, profile and justified exceptions. Preserve existing CTL-/POL- 
 Do not infer legal applicability, ISO conformance or certification from a mapping.
 
 Primary references:
+
 - [NIST SSDF](https://csrc.nist.gov/pubs/sp/800/218/final)
 - [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/)
 - [MIT STPA handbook](https://psas.scripts.mit.edu/home/books-and-handbooks/)

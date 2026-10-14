@@ -26,6 +26,7 @@ and limitations. Documentation edits do not authorize live deployment or testing
 ## Repository essentials
 
 Ansible configuration management and hardening. Read `CONTRIBUTING.md`, `LIMITATIONS.md`, relevant `docs/ADR-*.md`, role READMEs, and `docs/compliance-controls.yml`.
+
 - Roles belong in `roles/<snake_case>/` with defaults, tasks, metadata, README, and role-local files/templates; handlers when needed. Playbooks use hyphenated names in `playbooks/`; inventories isolate environments.
 - YAML: two spaces, `.yml`, document start, `true`/`false`. Use named tasks and FQCNs; prefer idempotent modules over shell; static imports versus dynamic includes intentionally. Scope privilege to tasks that need it.
 - Preserve CTL-/POL- role references and their catalog definitions. A mapping is evidence linkage, not legal compliance or benchmark conformance. Verify legal applicability and benchmark edition before making such claims.
