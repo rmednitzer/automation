@@ -9,6 +9,11 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+### Agent guidance (2026-10-14)
+
+- Consolidate Codex, Claude Code and Copilot guidance with repository-specific secure development, STPA traceability and private vulnerability reporting.
+
+
 - 2026-09-13 **`ufw`: fix the SSH rate-limit rule's hardcoded port
   (POL-001).** `roles/ufw/tasks/main.yml` rate-limited SSH on a literal
   `port: "22"`, independent of any variable — unlike every other value in
