@@ -1,18 +1,40 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>rmednitzer/infra:renovate-preset"],
-  "pre-commit": { "enabled": true },
+  "extends": [
+    "github>rmednitzer/infra:renovate-preset"
+  ],
+  "pre-commit": {
+    "enabled": true
+  },
   "packageRules": [
     {
       "description": "Group pre-commit hook updates into one PR.",
-      "matchManagers": ["pre-commit"],
+      "matchManagers": [
+        "pre-commit"
+      ],
       "groupName": "pre-commit hooks"
     },
     {
       "description": "Group non-major Ansible Galaxy collection and role requirement updates.",
-      "matchManagers": ["ansible-galaxy"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "matchManagers": [
+        "ansible-galaxy"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
       "groupName": "ansible galaxy requirements"
+    },
+    {
+      "description": "Keep CI on Python 3.14 until the pinned Ansible toolchain supports a newer interpreter.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "allowedVersions": "<3.15"
     }
   ]
 }
