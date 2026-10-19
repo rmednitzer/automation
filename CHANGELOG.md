@@ -9,6 +9,11 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+### CI compatibility (2026-10-19)
+
+- Keep CI on Python 3.14 and constrain Renovate interpreter updates below 3.15 until
+  the pinned Ansible toolchain supports the newer runtime.
+
 ### Agent guidance (2026-10-14)
 
 - Consolidate Codex, Claude Code and Copilot guidance with repository-specific secure development, STPA traceability and private vulnerability reporting.
