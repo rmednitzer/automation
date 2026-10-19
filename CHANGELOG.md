@@ -9,6 +9,11 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
+### Dependency maintenance (2026-10-19)
+
+- Explicitly enable the Renovate dependency dashboard for on-demand dependency
+  checks and schedule overrides now that repository issues are available.
+
 ### CI compatibility (2026-10-19)
 
 - Keep CI on Python 3.14 and constrain Renovate interpreter updates below 3.15 until

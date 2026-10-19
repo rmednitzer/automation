@@ -32,9 +32,11 @@
         "github-actions"
       ],
       "matchPackageNames": [
-        "python"
+        "python",
+        "actions/python-versions"
       ],
       "allowedVersions": "<3.15"
     }
-  ]
+  ],
+  "dependencyDashboard": true
 }
