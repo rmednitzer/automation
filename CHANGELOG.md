@@ -9,7 +9,7 @@ an `[Unreleased]` entry naming affected CTL- / POL- IDs.
 
 ## [Unreleased]
 
-- Cancel superseded PR validation only, preserving separate verification runs for every non-PR invocation.
+- Coalesce initial PR validation, isolate manual reruns, and preserve non-PR verification evidence.
 
 - Make Renovate policy self-contained in this repository, preserving local update rules and removing cross-repository policy inheritance.
 
